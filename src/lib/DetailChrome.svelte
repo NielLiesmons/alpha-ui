@@ -4,6 +4,7 @@
 	 * Apps own body content; this owns layout, mobile slide-over, and top bars.
 	 */
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
+	import ChromeMobileBar from './ChromeMobileBar.svelte';
 
 	/**
 	 * @type {{
@@ -57,27 +58,7 @@
 	aria-busy={syncing || undefined}
 >
 	{#if !empty}
-		<header class="mobile-bar" style="--chrome-scroll-fade: {detailFade}">
-			<button type="button" class="chrome-btn chev-back" aria-label="Back" onclick={onClose}>
-				<svg width="22" height="22" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-					<path
-						d="M11.5 3.5 6 9l5.5 5.5"
-						stroke="currentColor"
-						stroke-width="1.7"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					/>
-				</svg>
-			</button>
-			<span class="mobile-title-stack">
-				<span class="mobile-type">{title || label}</span>
-			</span>
-			{#if mobileTrailing}
-				{@render mobileTrailing()}
-			{:else}
-				<span class="menu-spacer" aria-hidden="true"></span>
-			{/if}
-		</header>
+		<ChromeMobileBar title={title || label} onBack={onClose} trailing={mobileTrailing} />
 
 		<header class="detail-top desktop-head">
 			<div class="detail-top-start">
@@ -129,10 +110,6 @@
 		color: var(--fg);
 	}
 
-	.mobile-bar {
-		display: none;
-	}
-
 	.desktop-head {
 		position: absolute;
 		top: 0;
@@ -156,7 +133,8 @@
 	.detail-top-start {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		/* Match ListTitleChrome / Admin detail-top back ↔ title */
+		gap: 12px;
 		min-width: 0;
 	}
 
@@ -176,8 +154,7 @@
 		gap: 4px;
 	}
 
-	.icon-hit,
-	.chrome-btn {
+	.icon-hit {
 		display: grid;
 		place-items: center;
 		width: 28px;
@@ -195,8 +172,7 @@
 		-webkit-backdrop-filter: blur(var(--glass-blur));
 	}
 
-	.icon-hit:hover,
-	.chrome-btn:hover {
+	.icon-hit:hover {
 		color: var(--fg);
 	}
 
@@ -236,11 +212,6 @@
 		color: var(--fg-16);
 	}
 
-	.menu-spacer {
-		width: 44px;
-		height: 44px;
-	}
-
 	@media (max-width: 767px) {
 		.detail {
 			position: fixed;
@@ -266,49 +237,11 @@
 			display: none;
 		}
 
-		.mobile-bar {
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			z-index: 8;
-			display: flex;
-			align-items: center;
-			gap: 4px;
-			height: calc(52px + env(safe-area-inset-top, 0px));
-			padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px;
-			box-sizing: border-box;
-			pointer-events: none;
-		}
-
-		.mobile-bar > * {
-			pointer-events: auto;
-		}
-
-		.mobile-title-stack {
-			flex: 1;
-			min-width: 0;
-			text-align: center;
-		}
-
-		.mobile-type {
-			font-family: 'Inter', var(--font), system-ui, sans-serif;
-			font-size: 13px;
-			font-weight: 600;
-			color: var(--fg);
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		.chrome-btn {
-			width: 44px;
-			height: 44px;
-			border-radius: 9999px;
-		}
-
 		.body {
-			padding-top: calc(52px + env(safe-area-inset-top, 0px));
+			padding-top: calc(56px + env(safe-area-inset-top, 0px));
+			padding-left: 14px;
+			padding-right: 14px;
+			padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 		}
 	}
 </style>

@@ -45,6 +45,11 @@
 		color-mix(in srgb, var(--accent-1) 6%, var(--fg-8)) 100%
 	);
 	--button-primary-fg: var(--fg);
+	/* Pointer highlight + scale (PrimaryButton / GlassButton) */
+	--button-hover-scale: 1.03;
+	--button-active-scale: 0.97;
+	--button-shine-size: 100px;
+	--button-shine-blur: 20px;
 
 	/* Semantic aliases */
 	--accent: var(--accent-1);
@@ -100,13 +105,13 @@
 	);
 	--glass-blur: 22px;
 	--glass-border: color-mix(in srgb, var(--fg) 12%, transparent);
-	/* Soft specular — buttons only (not modals / bottom nav) */
+	/* Soft specular stroke — CTAs + top-bar chrome (tweak for more/less glass) */
 	--glass-shine: linear-gradient(
 		135deg,
-		color-mix(in srgb, var(--fg) 28%, transparent) 0%,
-		color-mix(in srgb, var(--fg) 10%, transparent) 45%,
-		color-mix(in srgb, var(--fg) 10%, transparent) 55%,
-		color-mix(in srgb, var(--fg) 22%, transparent) 100%
+		color-mix(in srgb, var(--fg) 42%, transparent) 0%,
+		color-mix(in srgb, var(--fg) 12%, transparent) 38%,
+		color-mix(in srgb, var(--fg) 8%, transparent) 55%,
+		color-mix(in srgb, var(--fg) 28%, transparent) 100%
 	);
 	--popover: var(--glass-panel);
 	--modal-bg: var(--glass-panel);
@@ -222,10 +227,10 @@
 	--glass-border: color-mix(in srgb, var(--fg) 10%, transparent);
 	--glass-shine: linear-gradient(
 		135deg,
-		color-mix(in srgb, #fff 50%, transparent) 0%,
-		color-mix(in srgb, var(--fg) 8%, transparent) 45%,
+		color-mix(in srgb, #fff 68%, transparent) 0%,
+		color-mix(in srgb, var(--fg) 10%, transparent) 38%,
 		color-mix(in srgb, var(--fg) 8%, transparent) 55%,
-		color-mix(in srgb, var(--fg) 16%, transparent) 100%
+		color-mix(in srgb, var(--fg) 22%, transparent) 100%
 	);
 	--popover: var(--glass-panel);
 	--modal-bg: var(--glass-panel);

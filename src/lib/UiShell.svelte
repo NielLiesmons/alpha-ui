@@ -881,7 +881,10 @@
 		}
 	}
 
-	.list-top > * {
+	/* :global(*) — slotted ListTitleChrome roots are other components' scoped
+	   nodes; without :global, Svelte rewrites this to >:where(.svelte-…) and
+	   back/title clicks stay dead under list-top's pointer-events: none. */
+	.list-top > :global(*) {
 		pointer-events: auto;
 	}
 
@@ -1229,28 +1232,21 @@
 			display: flex;
 			align-items: stretch;
 			gap: 0;
-			overflow-x: auto;
-			scroll-snap-type: x mandatory;
-			scrollbar-width: none;
-			-ms-overflow-style: none;
-			padding: 6px 8px;
-			scroll-padding-inline: 40%;
-		}
-
-		.pill-track::-webkit-scrollbar {
-			display: none;
+			overflow: hidden;
+			padding: 6px 4px;
+			width: 100%;
+			box-sizing: border-box;
 		}
 
 		.pill-item {
-			scroll-snap-align: center;
-			flex: 0 0 auto;
+			flex: 1 1 0;
+			min-width: 0;
 			display: flex;
 			flex-direction: column;
 			align-items: center;
 			justify-content: center;
 			gap: 2px;
-			min-width: 64px;
-			padding: 6px 10px;
+			padding: 6px 4px;
 			border: 0;
 			border-radius: 999px;
 			background: transparent;

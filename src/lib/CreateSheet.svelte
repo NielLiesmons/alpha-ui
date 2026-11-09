@@ -1,16 +1,22 @@
 <script>
 	import { fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
+	import { dragDismiss as dragDismissAction } from './drag-dismiss.js';
 
 	/**
 	 * Create / edit overlay — mobile bottom sheet, desktop centered card.
 	 * Pass fullscreen for true edge-to-edge mobile (e.g. now-playing).
+	 * Mobile: drag the sheet down to dismiss (full surface; respects inner scroll).
 	 * Pickers (emoji, labels, assignees) use FloatPanel popovers — never nested sheets.
 	 */
 	let {
 		open = false,
 		label = 'Create',
 		fullscreen = false,
+		/** Enable drag-down dismiss on mobile */
+		dragDismiss = true,
+		/** Subtle top handle hint (hidden in fullscreen — now-playing is full-page draggable) */
+		showHandle = true,
 		onclose = () => {},
 		children
 	} = $props();
@@ -55,7 +61,19 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div class="overlay" onclick={close} role="presentation" transition:fade={{ duration: 180 }}></div>
 	<div class="wrap" class:fullscreen role="dialog" aria-modal="true" aria-label={label}>
-		<div class="sheet" class:fullscreen transition:sheetSlide>
+		<div
+			class="sheet"
+			class:fullscreen
+			transition:sheetSlide
+			use:dragDismissAction={{
+				onclose: close,
+				enabled: dragDismiss,
+				scrollSelector: '.sheet-inner'
+			}}
+		>
+			{#if showHandle && !fullscreen}
+				<div class="handle" aria-hidden="true"><span class="handle-pill"></span></div>
+			{/if}
 			<div class="sheet-inner">
 				{@render children?.()}
 			</div>
@@ -88,7 +106,6 @@
 		pointer-events: none;
 		padding: 0;
 		box-sizing: border-box;
-		box-sizing: border-box;
 	}
 
 	.sheet {
@@ -111,6 +128,23 @@
 		overflow: visible;
 		padding: 0 0 calc(14px + env(safe-area-inset-bottom, 0px));
 		box-sizing: border-box;
+		will-change: transform;
+	}
+
+	.handle {
+		flex-shrink: 0;
+		display: grid;
+		place-items: center;
+		height: 22px;
+		pointer-events: none;
+	}
+
+	.handle-pill {
+		display: block;
+		width: 36px;
+		height: 4px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--fg) 28%, transparent);
 	}
 
 	.wrap.fullscreen {
@@ -168,6 +202,10 @@
 			border-bottom: 1px solid var(--glass-border);
 			padding: 0 0 14px;
 			overflow: hidden;
+		}
+
+		.handle {
+			display: none;
 		}
 
 		.sheet-inner {
