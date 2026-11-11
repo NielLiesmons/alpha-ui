@@ -101,6 +101,8 @@
 	let ignoreNavPop = false;
 	/** Last path we armed — popstate with a path change is section back, not nav. */
 	let navArmedPath = '';
+	/** Only close the drawer when the section href actually changes. */
+	let lastNavHref = '';
 
 	$effect(() => {
 		if (typeof window === 'undefined') return;
@@ -254,23 +256,29 @@
 		});
 	});
 
-	/* Close drawer whenever the active section changes. */
+	/* Close drawer when the section href actually changes (not on every effect). */
 	$effect(() => {
-		activeHref;
-		closeMobileNav({ history: false });
+		const href = activeHref;
+		if (lastNavHref && lastNavHref !== href) {
+			closeMobileNav({ history: false });
+		}
+		lastNavHref = href;
 	});
 
-	/* Arm a same-URL history entry so Android back can open the nav. */
+	/* Arm one same-URL history entry so Android back can open the nav. */
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		if (!isMobileViewport) return;
 		activeHref;
 		const path = window.location.pathname;
 		navArmedPath = path;
-		if (history.state?.alphaShell && history.state?.alphaPath === path) return;
+		if (history.state?.alphaPath === path && history.state?.alphaShell) return;
 		ignoreNavPop = true;
-		const base = { ...(history.state || {}), alphaShell: true, alphaPath: path };
-		delete base.alphaNav;
+		const base = {
+			...(history.state || {}),
+			alphaShell: true,
+			alphaPath: path
+		};
 		history.replaceState(base, '');
 		history.pushState({ ...base, alphaNavTrap: true }, '');
 		queueMicrotask(() => {
@@ -278,7 +286,7 @@
 		});
 	});
 
-	/* Android / browser back: close open nav, or open nav when still on this list. */
+	/* Android / browser back: sync drawer to history, or open when still on this list. */
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 
@@ -328,7 +336,7 @@
 
 		const OPEN_THRESHOLD = 0.28;
 		const CLOSE_THRESHOLD = 0.22;
-		const CLAIM = 10;
+		const CLAIM = 12;
 
 		/** @type {number | null} */
 		let pointerId = null;
@@ -344,10 +352,12 @@
 			if (e.pointerType === 'mouse' && e.button !== 0) return;
 			if (!isMobileShell() || detailOpen()) return;
 			const t = e.target;
+			/* Never start a drawer drag from chrome controls — a menu tap was
+			   opening then immediately closing via the same gesture's pointerup. */
 			if (
 				t instanceof Element &&
 				t.closest(
-					'input, textarea, select, [contenteditable="true"], [data-no-nav-swipe]'
+					'button, a, input, textarea, select, [role="button"], [contenteditable="true"], [data-no-nav-swipe]'
 				)
 			) {
 				return;
@@ -377,9 +387,6 @@
 					mode = null;
 					return;
 				}
-				if (mode === 'close' && dx > CLAIM) {
-					/* slight reverse still claims close drag */
-				}
 				claimed = true;
 				try {
 					root.setPointerCapture(pointerId);
@@ -400,13 +407,14 @@
 			if (pointerId == null || e.pointerId !== pointerId) return;
 			const w = drawerWidthPx() || 1;
 			const x = drawerDragX;
+			const wasClaimed = claimed;
 			pointerId = null;
 			mode = null;
-			if (!claimed || x == null) {
+			claimed = false;
+			if (!wasClaimed || x == null) {
 				drawerDragX = null;
 				return;
 			}
-			claimed = false;
 			const nextOpen = startOpen
 				? x / w > 1 - CLOSE_THRESHOLD
 				: x / w >= OPEN_THRESHOLD;
@@ -590,9 +598,22 @@
 							tabindex={mobileNavOpen ? -1 : 0}
 							onclick={toggleMobileNav}
 						>
-							<span class="chrome-ico menu-ico" aria-hidden="true">
-								<NavIcon name="menu" size={22} />
-							</span>
+							<!-- Inline like filter/plus so stroke scales with the icon (not non-scaling). -->
+							<svg
+								class="chrome-ico menu-ico"
+								width="16"
+								height="16"
+								viewBox="0 0 16 16"
+								fill="none"
+								aria-hidden="true"
+							>
+								<path
+									d="M2.75 3.75h10.5M2.75 8h10.5M2.75 12.25h7"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linecap="round"
+								/>
+							</svg>
 						</button>
 					{/if}
 					{#if listTitleSlot}
@@ -1430,24 +1451,7 @@
 			will-change: transform;
 		}
 
-		.workspace-wrap::after {
-			content: '';
-			position: absolute;
-			inset: 0;
-			z-index: 60;
-			border-radius: inherit;
-			/* --fg is light in dark mode / dark in light → correct veil either way */
-			background: color-mix(in srgb, var(--fg) 10%, transparent);
-			opacity: var(--drawer-progress);
-			pointer-events: none;
-			transition: opacity 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
-		}
-
 		.shell.nav-dragging .workspace-wrap {
-			transition: none;
-		}
-
-		.shell.nav-dragging .workspace-wrap::after {
 			transition: none;
 		}
 
@@ -1455,8 +1459,8 @@
 		.shell.nav-dragging .workspace-wrap {
 			box-shadow:
 				0 0 0 calc(1px * var(--drawer-progress))
-					color-mix(in srgb, var(--fg) 14%, transparent),
-				-8px 0 28px color-mix(in srgb, var(--fg-raw, #000) 22%, transparent);
+					color-mix(in srgb, var(--fg) 12%, transparent),
+				-8px 0 28px color-mix(in srgb, var(--fg-raw, #000) 18%, transparent);
 		}
 
 		.nav-peek {
@@ -1483,6 +1487,13 @@
 			border: 0;
 			background: var(--shell);
 			width: 100%;
+			/* Peek: keep page bg, just quiet the content */
+			opacity: calc(1 - 0.2 * var(--drawer-progress));
+			transition: opacity 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.shell.nav-dragging .workspace {
+			transition: none;
 		}
 
 		.list-col {
@@ -1540,14 +1551,19 @@
 		}
 
 		.mobile-menu-btn {
+			position: relative;
+			z-index: 2;
 			display: grid;
 			flex-shrink: 0;
 			align-self: center;
-			/* Match filter / plus stroke weight */
-			--icon-stroke: 1.5;
 			transition:
 				opacity 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				transform 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.list-top > .list-actions {
+			position: relative;
+			z-index: 2;
 		}
 
 		.mobile-menu-btn.nav-hidden {
@@ -1556,11 +1572,10 @@
 			pointer-events: none;
 		}
 
+		/* Slightly larger than filter/plus so the short-bar glyph reads at the same weight */
 		.mobile-menu-btn .menu-ico {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			color: inherit;
+			width: 24px;
+			height: 24px;
 		}
 
 		/* Soft veil at bottom (safe-area only — no pill) */
@@ -1595,32 +1610,46 @@
 			transition: transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 		}
 
-		/* Optical center in the bar while menu + actions flank it */
+		/* True screen-center: full bar width, text centered; side pad only avoids chrome overlap */
 		.list-top > :global(.mobile-page-title),
-		.list-top > .mobile-page-title {
+		.list-top > .mobile-page-title,
+		.list-top > :global(.mail-title) {
 			position: absolute;
-			left: 58px;
-			right: 58px;
+			left: 0;
+			right: 0;
+			top: calc(6px + env(safe-area-inset-top, 0px));
+			height: 44px;
 			flex: none;
 			width: auto;
+			padding: 0 58px;
+			box-sizing: border-box;
+			justify-content: center;
 			pointer-events: none;
+			z-index: 1;
 		}
 
 		.list-top > :global(.mobile-page-title) > :global(*),
-		.list-top > .mobile-page-title > :global(*) {
+		.list-top > .mobile-page-title > :global(*),
+		.list-top > :global(.mail-title) > :global(*) {
 			pointer-events: auto;
 		}
 
 		.shell.nav-open .list-top > :global(.mobile-page-title),
 		.shell.nav-open .list-top > .mobile-page-title,
 		.shell.nav-dragging .list-top > :global(.mobile-page-title),
-		.shell.nav-dragging .list-top > .mobile-page-title {
+		.shell.nav-dragging .list-top > .mobile-page-title,
+		.shell.nav-open .list-top > :global(.mail-title),
+		.shell.nav-dragging .list-top > :global(.mail-title) {
 			position: relative;
 			left: auto;
 			right: auto;
+			top: auto;
 			flex: 1;
+			width: auto;
+			padding: 0;
 			justify-content: flex-start;
-			transform: translate3d(-6px, 0, 0);
+			transform: none;
+			z-index: auto;
 		}
 
 		.mobile-title-stack {
