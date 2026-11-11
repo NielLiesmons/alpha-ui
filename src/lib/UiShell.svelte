@@ -97,13 +97,17 @@
 	/** Live drag offset (px) while edge-swiping the drawer; null when idle. */
 	let drawerDragX = $state(/** @type {number | null} */ (null));
 	let isMobileViewport = $state(false);
+	/** Ignore our own pushState/back while syncing the Android-back trap. */
+	let ignoreNavPop = false;
+	/** Last path we armed — popstate with a path change is section back, not nav. */
+	let navArmedPath = '';
 
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		const mq = window.matchMedia('(max-width: 767px)');
 		const sync = () => {
 			isMobileViewport = mq.matches;
-			if (!mq.matches) closeMobileNav();
+			if (!mq.matches) closeMobileNav({ history: false });
 		};
 		sync();
 		mq.addEventListener('change', sync);
@@ -156,15 +160,66 @@
 		return Number.isFinite(n) ? n : window.innerWidth * 0.67;
 	}
 
-	function closeMobileNav() {
-		mobileNavOpen = false;
-		drawerDragX = null;
+	/** Drop the alphaNav flag without walking history (section changes). */
+	function clearNavHistoryFlag() {
+		if (typeof history === 'undefined' || !history.state?.alphaNav) return;
+		ignoreNavPop = true;
+		const next = { ...(history.state || {}) };
+		delete next.alphaNav;
+		history.replaceState(next, '');
+		queueMicrotask(() => {
+			ignoreNavPop = false;
+		});
 	}
 
-	function openMobileNav() {
-		if (detailOpen()) return;
-		mobileNavOpen = true;
+	/**
+	 * @param {{ history?: boolean }} [opts]
+	 */
+	function closeMobileNav(opts = {}) {
+		const useHistory = opts.history !== false;
 		drawerDragX = null;
+		if (!mobileNavOpen) {
+			if (!useHistory) clearNavHistoryFlag();
+			return;
+		}
+		if (
+			useHistory &&
+			typeof history !== 'undefined' &&
+			history.state?.alphaNav &&
+			isMobileShell()
+		) {
+			ignoreNavPop = true;
+			history.back();
+			queueMicrotask(() => {
+				ignoreNavPop = false;
+			});
+			mobileNavOpen = false;
+			return;
+		}
+		mobileNavOpen = false;
+		if (!useHistory) clearNavHistoryFlag();
+	}
+
+	/**
+	 * @param {{ history?: boolean }} [opts]
+	 */
+	function openMobileNav(opts = {}) {
+		if (detailOpen()) return;
+		if (!isMobileShell()) return;
+		const useHistory = opts.history !== false;
+		drawerDragX = null;
+		mobileNavOpen = true;
+		if (
+			useHistory &&
+			typeof history !== 'undefined' &&
+			!history.state?.alphaNav
+		) {
+			ignoreNavPop = true;
+			history.pushState({ ...(history.state || {}), alphaNav: true }, '');
+			queueMicrotask(() => {
+				ignoreNavPop = false;
+			});
+		}
 	}
 
 	function toggleMobileNav() {
@@ -174,7 +229,8 @@
 
 	/** @param {string} href */
 	function go(href) {
-		closeMobileNav();
+		/* Navigating away — don't history.back() into the previous section. */
+		closeMobileNav({ history: false });
 		onNavigate(href);
 	}
 
@@ -201,17 +257,78 @@
 	/* Close drawer whenever the active section changes. */
 	$effect(() => {
 		activeHref;
-		closeMobileNav();
+		closeMobileNav({ history: false });
 	});
 
-	/* Edge + page swipe to open/close the mobile sidebar drawer. */
+	/* Arm a same-URL history entry so Android back can open the nav. */
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		if (!isMobileViewport) return;
+		activeHref;
+		const path = window.location.pathname;
+		navArmedPath = path;
+		if (history.state?.alphaShell && history.state?.alphaPath === path) return;
+		ignoreNavPop = true;
+		const base = { ...(history.state || {}), alphaShell: true, alphaPath: path };
+		delete base.alphaNav;
+		history.replaceState(base, '');
+		history.pushState({ ...base, alphaNavTrap: true }, '');
+		queueMicrotask(() => {
+			ignoreNavPop = false;
+		});
+	});
+
+	/* Android / browser back: close open nav, or open nav when still on this list. */
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+
+		/** @param {PopStateEvent} _e */
+		function onPop(_e) {
+			if (ignoreNavPop) return;
+			if (!isMobileShell()) {
+				mobileNavOpen = false;
+				return;
+			}
+			const path = window.location.pathname;
+			const pathChanged = Boolean(navArmedPath) && path !== navArmedPath;
+			navArmedPath = path;
+
+			/* Detail layers own their history entries — don't steal that back. */
+			if (detailOpen() || history.state?.alphaLayer) {
+				if (mobileNavOpen) mobileNavOpen = false;
+				return;
+			}
+			if (pathChanged) {
+				mobileNavOpen = false;
+				drawerDragX = null;
+				return;
+			}
+			if (history.state?.alphaNav) {
+				mobileNavOpen = true;
+				drawerDragX = null;
+				return;
+			}
+			if (mobileNavOpen) {
+				mobileNavOpen = false;
+				drawerDragX = null;
+				return;
+			}
+			/* Same-URL back on a main list page opens the nav instead of leaving. */
+			openMobileNav({ history: true });
+		}
+
+		window.addEventListener('popstate', onPop);
+		return () => window.removeEventListener('popstate', onPop);
+	});
+
+	/* Full-page swipe right to open / left to close the mobile sidebar drawer. */
 	$effect(() => {
 		const root = shellEl;
 		if (!root || typeof window === 'undefined') return;
 
-		const EDGE = 28;
 		const OPEN_THRESHOLD = 0.28;
 		const CLOSE_THRESHOLD = 0.22;
+		const CLAIM = 10;
 
 		/** @type {number | null} */
 		let pointerId = null;
@@ -227,24 +344,20 @@
 			if (e.pointerType === 'mouse' && e.button !== 0) return;
 			if (!isMobileShell() || detailOpen()) return;
 			const t = e.target;
-			if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) {
+			if (
+				t instanceof Element &&
+				t.closest(
+					'input, textarea, select, [contenteditable="true"], [data-no-nav-swipe]'
+				)
+			) {
 				return;
 			}
 			startX = e.clientX;
 			startY = e.clientY;
 			startOpen = mobileNavOpen;
-			mode = null;
+			mode = mobileNavOpen ? 'close' : 'open';
 			claimed = false;
 			pointerId = e.pointerId;
-
-			if (mobileNavOpen) {
-				mode = 'close';
-			} else if (e.clientX <= EDGE) {
-				mode = 'open';
-			} else {
-				pointerId = null;
-				return;
-			}
 		}
 
 		function onPointerMove(e) {
@@ -252,8 +365,8 @@
 			const dx = e.clientX - startX;
 			const dy = e.clientY - startY;
 			if (!claimed) {
-				if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-				if (Math.abs(dy) > Math.abs(dx)) {
+				if (Math.abs(dx) < CLAIM && Math.abs(dy) < CLAIM) return;
+				if (Math.abs(dy) >= Math.abs(dx) * 0.85) {
 					pointerId = null;
 					mode = null;
 					drawerDragX = null;
@@ -264,8 +377,8 @@
 					mode = null;
 					return;
 				}
-				if (mode === 'close' && dx > 0) {
-					/* allow slight reverse, still claim */
+				if (mode === 'close' && dx > CLAIM) {
+					/* slight reverse still claims close drag */
 				}
 				claimed = true;
 				try {
@@ -294,12 +407,12 @@
 				return;
 			}
 			claimed = false;
-			if (startOpen) {
-				mobileNavOpen = x / w > 1 - CLOSE_THRESHOLD;
-			} else {
-				mobileNavOpen = x / w >= OPEN_THRESHOLD;
-			}
+			const nextOpen = startOpen
+				? x / w > 1 - CLOSE_THRESHOLD
+				: x / w >= OPEN_THRESHOLD;
 			drawerDragX = null;
+			if (nextOpen) openMobileNav({ history: true });
+			else closeMobileNav({ history: true });
 		}
 
 		function onPointerCancel(e) {
@@ -466,18 +579,22 @@
 					class="list-top"
 					style="--chrome-scroll-fade: {listFade}"
 				>
-					<button
-						type="button"
-						class="chrome-btn mobile-menu-btn"
-						aria-label="Menu"
-						aria-expanded={mobileNavOpen}
-						aria-controls="alpha-shell-sidebar"
-						onclick={toggleMobileNav}
-					>
-						<span class="chrome-ico menu-ico" aria-hidden="true">
-							<NavIcon name="menu" size={22} />
-						</span>
-					</button>
+					{#if isMobileViewport}
+						<button
+							type="button"
+							class="chrome-btn mobile-menu-btn"
+							class:nav-hidden={mobileNavOpen || (drawerDragX != null && drawerDragX > 8)}
+							aria-label="Menu"
+							aria-expanded={mobileNavOpen}
+							aria-controls="alpha-shell-sidebar"
+							tabindex={mobileNavOpen ? -1 : 0}
+							onclick={toggleMobileNav}
+						>
+							<span class="chrome-ico menu-ico" aria-hidden="true">
+								<NavIcon name="menu" size={22} />
+							</span>
+						</button>
+					{/if}
 					{#if listTitleSlot}
 						{@render listTitleSlot()}
 					{:else}
@@ -1300,7 +1417,10 @@
 			height: calc(100% - (24px * var(--drawer-progress)));
 			overflow: hidden;
 			background: var(--shell);
-			box-shadow: 0 0 0 0 transparent;
+			box-shadow:
+				0 0 0 calc(1px * var(--drawer-progress))
+					color-mix(in srgb, var(--fg) 14%, transparent),
+				0 0 0 0 transparent;
 			transition:
 				transform 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				border-radius 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
@@ -1310,13 +1430,33 @@
 			will-change: transform;
 		}
 
+		.workspace-wrap::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: 60;
+			border-radius: inherit;
+			/* --fg is light in dark mode / dark in light → correct veil either way */
+			background: color-mix(in srgb, var(--fg) 10%, transparent);
+			opacity: var(--drawer-progress);
+			pointer-events: none;
+			transition: opacity 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
 		.shell.nav-dragging .workspace-wrap {
+			transition: none;
+		}
+
+		.shell.nav-dragging .workspace-wrap::after {
 			transition: none;
 		}
 
 		.shell.nav-open .workspace-wrap,
 		.shell.nav-dragging .workspace-wrap {
-			box-shadow: -8px 0 28px color-mix(in srgb, var(--fg-raw, #000) 22%, transparent);
+			box-shadow:
+				0 0 0 calc(1px * var(--drawer-progress))
+					color-mix(in srgb, var(--fg) 14%, transparent),
+				-8px 0 28px color-mix(in srgb, var(--fg-raw, #000) 22%, transparent);
 		}
 
 		.nav-peek {
@@ -1403,21 +1543,24 @@
 			display: grid;
 			flex-shrink: 0;
 			align-self: center;
+			/* Match filter / plus stroke weight */
+			--icon-stroke: 1.5;
+			transition:
+				opacity 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				transform 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.mobile-menu-btn.nav-hidden {
+			opacity: 0;
+			transform: scale(0.86);
+			pointer-events: none;
 		}
 
 		.mobile-menu-btn .menu-ico {
 			display: flex;
-			width: 22px;
-			height: 22px;
 			align-items: center;
 			justify-content: center;
 			color: inherit;
-		}
-
-		.mobile-menu-btn .menu-ico :global(svg) {
-			display: block;
-			width: 22px;
-			height: 22px;
 		}
 
 		/* Soft veil at bottom (safe-area only — no pill) */
@@ -1445,34 +1588,118 @@
 			display: flex;
 			align-items: center;
 			align-self: center;
+			justify-content: center;
 			min-width: 0;
 			flex: 1;
 			height: 44px;
+			transition: transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		/* Optical center in the bar while menu + actions flank it */
+		.list-top > :global(.mobile-page-title),
+		.list-top > .mobile-page-title {
+			position: absolute;
+			left: 58px;
+			right: 58px;
+			flex: none;
+			width: auto;
+			pointer-events: none;
+		}
+
+		.list-top > :global(.mobile-page-title) > :global(*),
+		.list-top > .mobile-page-title > :global(*) {
+			pointer-events: auto;
+		}
+
+		.shell.nav-open .list-top > :global(.mobile-page-title),
+		.shell.nav-open .list-top > .mobile-page-title,
+		.shell.nav-dragging .list-top > :global(.mobile-page-title),
+		.shell.nav-dragging .list-top > .mobile-page-title {
+			position: relative;
+			left: auto;
+			right: auto;
+			flex: 1;
+			justify-content: flex-start;
+			transform: translate3d(-6px, 0, 0);
 		}
 
 		.mobile-title-stack {
 			position: relative;
 			display: flex;
 			flex-direction: column;
-			align-items: stretch;
+			align-items: center;
 			justify-content: center;
 			min-width: 0;
 			flex: 1;
 			height: 44px;
+			transition: align-items 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.shell.nav-open .mobile-title-stack,
+		.shell.nav-dragging .mobile-title-stack,
+		.shell.nav-open .list-top :global(.mobile-title-stack),
+		.shell.nav-dragging .list-top :global(.mobile-title-stack) {
+			align-items: flex-start;
 		}
 
 		.mobile-page-name {
 			margin: 0;
 			min-width: 0;
+			max-width: 100%;
 			font-family: 'Inter', var(--font), system-ui, sans-serif;
-			font-size: 22px;
-			font-weight: 700;
-			letter-spacing: -0.02em;
-			line-height: 1.1;
-			color: var(--fg);
+			/* Match deeper mobile chrome titles */
+			font-size: 17px;
+			font-weight: 600;
+			letter-spacing: -0.01em;
+			line-height: 1.15;
+			color: var(--fg-66);
+			text-align: center;
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+			transition:
+				color 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				text-align 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.shell.nav-open .mobile-page-name,
+		.shell.nav-dragging .mobile-page-name,
+		.shell.nav-open .list-top :global(.mobile-page-name),
+		.shell.nav-dragging .list-top :global(.mobile-page-name),
+		.shell.nav-open .list-top :global(.mobile-name),
+		.shell.nav-dragging .list-top :global(.mobile-name) {
+			text-align: left;
+		}
+
+		/* Slotted ListTitleChrome / MailFolderTitle share the quieter centered look */
+		.list-top :global(.mobile-page-name),
+		.list-top :global(.mobile-name) {
+			font-size: 17px;
+			font-weight: 600;
+			letter-spacing: -0.01em;
+			line-height: 1.15;
+			color: var(--fg-66);
+			text-align: center;
+		}
+
+		.list-top :global(.mobile-title-stack) {
+			align-items: center;
+			justify-content: center;
+		}
+
+		.shell.nav-open .list-top :global(.mobile-title-stack),
+		.shell.nav-dragging .list-top :global(.mobile-title-stack) {
+			align-items: flex-start;
+		}
+
+		.list-top :global(.title-btn.mobile) {
+			justify-content: center;
+			width: 100%;
+		}
+
+		.shell.nav-open .list-top :global(.title-btn.mobile),
+		.shell.nav-dragging .list-top :global(.title-btn.mobile) {
+			justify-content: flex-start;
 		}
 
 		.list-actions {
