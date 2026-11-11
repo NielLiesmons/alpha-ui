@@ -1,9 +1,8 @@
 <script>
 	/**
-	 * Configurable Alpha app shell — sidebar + list/detail + mobile pill nav.
+	 * Configurable Alpha app shell — sidebar + list/detail + mobile drawer nav.
 	 * Apps pass sections and own domain logic; this owns chrome presentation.
 	 */
-	import { tick } from 'svelte';
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import NavIcon from './NavIcon.svelte';
 	import PullToRefresh from './PullToRefresh.svelte';
@@ -54,7 +53,8 @@
 	 */
 	let {
 		sections = [],
-		mobileSections = null,
+		/** @deprecated Bottom pill removed; kept for call-site compat. */
+		mobileSections: _mobileSections = null,
 		activeHref = '',
 		title = '',
 		counts = {},
@@ -84,16 +84,31 @@
 		children
 	} = $props();
 
-	/** @type {HTMLDivElement | undefined} */
-	let pillTrack = $state();
 	/** @type {HTMLElement | undefined} */
 	let listColEl = $state();
+	/** @type {HTMLElement | undefined} */
+	let shellEl = $state();
 	let listFade = $state(0);
 	let search = $state('');
 	let createMenuOpen = $state(false);
 	let filterOpen = $state(false);
+	/** Mobile sidebar drawer (list pages). Desktop sidebar stays in-flow. */
+	let mobileNavOpen = $state(false);
+	/** Live drag offset (px) while edge-swiping the drawer; null when idle. */
+	let drawerDragX = $state(/** @type {number | null} */ (null));
+	let isMobileViewport = $state(false);
 
-	const roleMobileNav = $derived(mobileSections ?? sections);
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const mq = window.matchMedia('(max-width: 767px)');
+		const sync = () => {
+			isMobileViewport = mq.matches;
+			if (!mq.matches) closeMobileNav();
+		};
+		sync();
+		mq.addEventListener('change', sync);
+		return () => mq.removeEventListener('change', sync);
+	});
 
 	/** @param {string} href */
 	function active(href) {
@@ -123,8 +138,43 @@
 		return sections.filter((item) => item.label.toLowerCase().includes(q));
 	});
 
+	function isMobileShell() {
+		return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+	}
+
+	function detailOpen() {
+		const workspace = listColEl?.parentElement;
+		return Boolean(workspace?.querySelector('.detail.open'));
+	}
+
+	function drawerWidthPx() {
+		if (!shellEl) return 0;
+		const raw = getComputedStyle(shellEl).getPropertyValue('--mobile-drawer').trim();
+		if (raw.endsWith('vw')) return (parseFloat(raw) / 100) * window.innerWidth;
+		if (raw.endsWith('px')) return parseFloat(raw);
+		const n = parseFloat(raw);
+		return Number.isFinite(n) ? n : window.innerWidth * 0.67;
+	}
+
+	function closeMobileNav() {
+		mobileNavOpen = false;
+		drawerDragX = null;
+	}
+
+	function openMobileNav() {
+		if (detailOpen()) return;
+		mobileNavOpen = true;
+		drawerDragX = null;
+	}
+
+	function toggleMobileNav() {
+		if (mobileNavOpen) closeMobileNav();
+		else openMobileNav();
+	}
+
 	/** @param {string} href */
 	function go(href) {
+		closeMobileNav();
 		onNavigate(href);
 	}
 
@@ -139,24 +189,6 @@
 		else if (createMenuItems.length) createMenuOpen = true;
 	}
 
-	async function centerActivePill() {
-		await tick();
-		const track = pillTrack;
-		if (!track) return;
-		const href = activeItem.href;
-		const el = track.querySelector(`[data-href="${href}"]`);
-		if (!(el instanceof HTMLElement)) return;
-		const left = el.offsetLeft - track.clientWidth / 2 + el.offsetWidth / 2;
-		track.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-	}
-
-	$effect(() => {
-		activeItem.href;
-		if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-			centerActivePill();
-		}
-	});
-
 	$effect(() => {
 		activeHref;
 		resolvedTitle;
@@ -165,13 +197,154 @@
 			listFade = v;
 		});
 	});
+
+	/* Close drawer whenever the active section changes. */
+	$effect(() => {
+		activeHref;
+		closeMobileNav();
+	});
+
+	/* Edge + page swipe to open/close the mobile sidebar drawer. */
+	$effect(() => {
+		const root = shellEl;
+		if (!root || typeof window === 'undefined') return;
+
+		const EDGE = 28;
+		const OPEN_THRESHOLD = 0.28;
+		const CLOSE_THRESHOLD = 0.22;
+
+		/** @type {number | null} */
+		let pointerId = null;
+		let startX = 0;
+		let startY = 0;
+		/** @type {'open' | 'close' | null} */
+		let mode = null;
+		let claimed = false;
+		let startOpen = false;
+
+		function onPointerDown(e) {
+			if (!(e instanceof PointerEvent)) return;
+			if (e.pointerType === 'mouse' && e.button !== 0) return;
+			if (!isMobileShell() || detailOpen()) return;
+			const t = e.target;
+			if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) {
+				return;
+			}
+			startX = e.clientX;
+			startY = e.clientY;
+			startOpen = mobileNavOpen;
+			mode = null;
+			claimed = false;
+			pointerId = e.pointerId;
+
+			if (mobileNavOpen) {
+				mode = 'close';
+			} else if (e.clientX <= EDGE) {
+				mode = 'open';
+			} else {
+				pointerId = null;
+				return;
+			}
+		}
+
+		function onPointerMove(e) {
+			if (pointerId == null || e.pointerId !== pointerId || !mode) return;
+			const dx = e.clientX - startX;
+			const dy = e.clientY - startY;
+			if (!claimed) {
+				if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+				if (Math.abs(dy) > Math.abs(dx)) {
+					pointerId = null;
+					mode = null;
+					drawerDragX = null;
+					return;
+				}
+				if (mode === 'open' && dx < 0) {
+					pointerId = null;
+					mode = null;
+					return;
+				}
+				if (mode === 'close' && dx > 0) {
+					/* allow slight reverse, still claim */
+				}
+				claimed = true;
+				try {
+					root.setPointerCapture(pointerId);
+				} catch {
+					/* ignore */
+				}
+			}
+			e.preventDefault();
+			const w = drawerWidthPx();
+			if (mode === 'open') {
+				drawerDragX = Math.max(0, Math.min(w, dx));
+			} else {
+				drawerDragX = Math.max(0, Math.min(w, w + dx));
+			}
+		}
+
+		function finish(e) {
+			if (pointerId == null || e.pointerId !== pointerId) return;
+			const w = drawerWidthPx() || 1;
+			const x = drawerDragX;
+			pointerId = null;
+			mode = null;
+			if (!claimed || x == null) {
+				drawerDragX = null;
+				return;
+			}
+			claimed = false;
+			if (startOpen) {
+				mobileNavOpen = x / w > 1 - CLOSE_THRESHOLD;
+			} else {
+				mobileNavOpen = x / w >= OPEN_THRESHOLD;
+			}
+			drawerDragX = null;
+		}
+
+		function onPointerCancel(e) {
+			if (pointerId == null || e.pointerId !== pointerId) return;
+			pointerId = null;
+			mode = null;
+			claimed = false;
+			drawerDragX = null;
+		}
+
+		root.addEventListener('pointerdown', onPointerDown, { passive: true });
+		root.addEventListener('pointermove', onPointerMove, { passive: false });
+		root.addEventListener('pointerup', finish);
+		root.addEventListener('pointercancel', onPointerCancel);
+		return () => {
+			root.removeEventListener('pointerdown', onPointerDown);
+			root.removeEventListener('pointermove', onPointerMove);
+			root.removeEventListener('pointerup', finish);
+			root.removeEventListener('pointercancel', onPointerCancel);
+		};
+	});
+
+	const drawerStyle = $derived.by(() => {
+		if (drawerDragX == null) return undefined;
+		const w = drawerWidthPx() || 1;
+		const p = Math.max(0, Math.min(1, drawerDragX / w));
+		return `--drawer-progress: ${p};`;
+	});
 </script>
 
-<div class="shell {feedPadClass}">
+<div
+	class="shell {feedPadClass}"
+	class:nav-open={mobileNavOpen}
+	class:nav-dragging={drawerDragX != null}
+	bind:this={shellEl}
+	style={drawerStyle}
+>
 	{#if banners}
 		{@render banners()}
 	{/if}
-	<aside class="sidebar">
+	<aside
+		class="sidebar"
+		id="alpha-shell-sidebar"
+		aria-hidden={isMobileViewport && !mobileNavOpen ? true : undefined}
+	>
 		<header class="side-top">
 			{#if sidebarLead}
 				{@render sidebarLead()}
@@ -275,6 +448,13 @@
 	</aside>
 
 	<div class="workspace-wrap">
+		<button
+			type="button"
+			class="nav-peek"
+			aria-label="Close menu"
+			tabindex={mobileNavOpen ? 0 : -1}
+			onclick={closeMobileNav}
+		></button>
 		<div class="workspace">
 			<section
 				class="list-col"
@@ -286,6 +466,18 @@
 					class="list-top"
 					style="--chrome-scroll-fade: {listFade}"
 				>
+					<button
+						type="button"
+						class="chrome-btn mobile-menu-btn"
+						aria-label="Menu"
+						aria-expanded={mobileNavOpen}
+						aria-controls="alpha-shell-sidebar"
+						onclick={toggleMobileNav}
+					>
+						<span class="chrome-ico menu-ico" aria-hidden="true">
+							<NavIcon name="menu" size={22} />
+						</span>
+					</button>
 					{#if listTitleSlot}
 						{@render listTitleSlot()}
 					{:else}
@@ -395,27 +587,6 @@
 	{#if sheets}
 		{@render sheets()}
 	{/if}
-
-	<nav class="bottom-pill" aria-label="Sections">
-		<div class="pill-inner">
-			<div class="pill-track" bind:this={pillTrack}>
-				{#each roleMobileNav as item (item.href)}
-					<button
-						type="button"
-						class="pill-item"
-						class:on={active(item.href)}
-						data-href={item.href}
-						aria-label={item.label}
-						aria-current={active(item.href) ? 'page' : undefined}
-						onclick={() => go(item.href)}
-					>
-						<span class="pill-icon"><NavIcon name={item.icon} size={22} /></span>
-						<span class="pill-label">{item.label}</span>
-					</button>
-				{/each}
-			</div>
-		</div>
-	</nav>
 </div>
 
 <style>
@@ -793,6 +964,11 @@
 		padding: 12px 12px 12px 0;
 		box-sizing: border-box;
 		display: flex;
+		position: relative;
+	}
+
+	.nav-peek {
+		display: none;
 	}
 
 	.workspace {
@@ -820,6 +996,10 @@
 		flex-direction: column;
 		border-right: 1px solid var(--hairline);
 		overflow: hidden;
+	}
+
+	.mobile-menu-btn {
+		display: none;
 	}
 
 	.list-col.wide {
@@ -1056,20 +1236,25 @@
 		border: 0;
 	}
 
-	.bottom-pill {
-		display: none;
-	}
-
 	@media (max-width: 767px) {
 		/* Full-bleed shell — darker than desktop workspace; matches desktop sidebar */
 		.shell {
 			--chrome-fade: var(--shell);
-			/* +4px vs prior so feed clears the floating bar with a little air */
+			/* Page peeks ~33% when drawer open; sidebar fills the rest */
+			--mobile-drawer: 67vw;
+			--drawer-progress: 0;
 			--feed-pad-top: calc(52px + env(safe-area-inset-top, 0px));
-			--feed-pad-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-			flex-direction: column;
+			/* Bottom pill removed — only safe-area + short fade */
+			--feed-pad-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+			position: relative;
+			flex-direction: row;
 			padding-bottom: 0;
 			background: var(--shell);
+			touch-action: pan-y;
+		}
+
+		.shell.nav-open {
+			--drawer-progress: 1;
 		}
 
 		.shell.tasks-pad {
@@ -1077,17 +1262,87 @@
 		}
 
 		.sidebar {
-			display: none;
+			display: flex;
+			position: absolute;
+			left: 0;
+			top: 0;
+			bottom: 0;
+			width: var(--mobile-drawer);
+			z-index: 1;
+			padding: calc(10px + env(safe-area-inset-top, 0px)) 14px
+				calc(12px + env(safe-area-inset-bottom, 0px));
+			pointer-events: none;
+		}
+
+		.shell.nav-open .sidebar,
+		.shell.nav-dragging .sidebar {
+			pointer-events: auto;
 		}
 
 		.workspace-wrap {
+			position: relative;
+			z-index: 2;
+			flex: 1 1 auto;
+			width: 100%;
+			min-width: 0;
+			min-height: 0;
 			padding: 0;
+			display: flex;
+			transform: translate3d(
+					calc(var(--mobile-drawer) * var(--drawer-progress)),
+					0,
+					0
+				)
+				scale(calc(1 - 0.045 * var(--drawer-progress)));
+			transform-origin: left center;
+			border-radius: calc(20px * var(--drawer-progress));
+			margin-block: calc(12px * var(--drawer-progress));
+			height: calc(100% - (24px * var(--drawer-progress)));
+			overflow: hidden;
+			background: var(--shell);
+			box-shadow: 0 0 0 0 transparent;
+			transition:
+				transform 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				border-radius 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				margin-block 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				height 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				box-shadow 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+			will-change: transform;
+		}
+
+		.shell.nav-dragging .workspace-wrap {
+			transition: none;
+		}
+
+		.shell.nav-open .workspace-wrap,
+		.shell.nav-dragging .workspace-wrap {
+			box-shadow: -8px 0 28px color-mix(in srgb, var(--fg-raw, #000) 22%, transparent);
+		}
+
+		.nav-peek {
+			display: block;
+			position: absolute;
+			inset: 0;
+			z-index: 70;
+			margin: 0;
+			padding: 0;
+			border: 0;
+			border-radius: inherit;
+			background: transparent;
+			cursor: pointer;
+			pointer-events: none;
+			opacity: 0;
+		}
+
+		.shell.nav-open .nav-peek {
+			pointer-events: auto;
 		}
 
 		.workspace {
-			border-radius: 0;
+			border-radius: inherit;
 			border: 0;
 			background: var(--shell);
+			width: 100%;
 		}
 
 		.list-col {
@@ -1097,13 +1352,40 @@
 			min-width: 0;
 			border-right: 0;
 			background: var(--shell);
+			transform-origin: center center;
+			transition:
+				transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				border-radius 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		/* iOS-like underlay when detail slides over the list */
+		.list-col::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: 40;
+			border-radius: inherit;
+			background: color-mix(in srgb, var(--fg-raw, #000) 28%, transparent);
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		:global(.workspace:has(.detail.open)) .list-col {
+			transform: scale(0.92);
+			border-radius: 16px;
+		}
+
+		:global(.workspace:has(.detail.open)) .list-col::before {
+			opacity: 1;
 		}
 
 		.list-top {
 			height: calc(88px + env(safe-area-inset-top, 0px));
-			padding: calc(6px + env(safe-area-inset-top, 0px)) 14px 34px 18px;
+			padding: calc(6px + env(safe-area-inset-top, 0px)) 14px 34px 14px;
 			align-items: center;
 			background: transparent;
+			gap: 8px;
 		}
 
 		.list-top::after {
@@ -1117,7 +1399,28 @@
 			);
 		}
 
-		/* Soft veil — three-stop; mid ≈ bottom-nav center */
+		.mobile-menu-btn {
+			display: grid;
+			flex-shrink: 0;
+			align-self: center;
+		}
+
+		.mobile-menu-btn .menu-ico {
+			display: flex;
+			width: 22px;
+			height: 22px;
+			align-items: center;
+			justify-content: center;
+			color: inherit;
+		}
+
+		.mobile-menu-btn .menu-ico :global(svg) {
+			display: block;
+			width: 22px;
+			height: 22px;
+		}
+
+		/* Soft veil at bottom (safe-area only — no pill) */
 		.list-bottom-fade {
 			display: block;
 			position: absolute;
@@ -1125,7 +1428,7 @@
 			right: 0;
 			bottom: 0;
 			z-index: 5;
-			height: calc(88px + env(safe-area-inset-bottom, 0px));
+			height: calc(40px + env(safe-area-inset-bottom, 0px));
 			background: linear-gradient(
 				to top,
 				color-mix(in srgb, var(--chrome-fade) 90%, transparent) 0%,
@@ -1203,96 +1506,11 @@
 		.pane {
 			padding: 0;
 		}
-
-		.bottom-pill {
-			display: block;
-			position: fixed;
-			z-index: 40;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px));
-			pointer-events: none;
-		}
-
-		.pill-inner {
-			pointer-events: auto;
-			max-width: 100%;
-			margin: 0 auto;
-			border-radius: 999px;
-			border: 1px solid var(--glass-border);
-			background: var(--glass-panel);
-			box-shadow: 0 8px 28px var(--shadow-strong);
-			overflow: hidden;
-			backdrop-filter: blur(var(--glass-blur));
-			-webkit-backdrop-filter: blur(var(--glass-blur));
-		}
-
-		.pill-track {
-			display: flex;
-			align-items: stretch;
-			gap: 0;
-			overflow-x: auto;
-			scroll-snap-type: x mandatory;
-			scrollbar-width: none;
-			-ms-overflow-style: none;
-			padding: 6px 8px;
-			scroll-padding-inline: 40%;
-		}
-
-		.pill-track::-webkit-scrollbar {
-			display: none;
-		}
-
-		.pill-item {
-			scroll-snap-align: center;
-			flex: 0 0 auto;
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			justify-content: center;
-			gap: 2px;
-			min-width: 64px;
-			padding: 6px 10px;
-			border: 0;
-			border-radius: 999px;
-			background: transparent;
-			color: var(--white33);
-			cursor: pointer;
-		}
-
-		.pill-item.on {
-			color: var(--white);
-			background: var(--white8);
-		}
-
-		.pill-icon {
-			display: flex;
-			width: 24px;
-			height: 24px;
-			align-items: center;
-			justify-content: center;
-		}
-
-		.pill-icon :global(svg) {
-			display: block;
-			max-width: 22px;
-			max-height: 20px;
-		}
-
-		.pill-label {
-			font-size: 9px;
-			font-weight: 500;
-			letter-spacing: 0.02em;
-			max-width: 4.5rem;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
 	}
 
 	.side-spacer {
 		flex: 1;
 		min-width: 0;
 	}
+
 </style>

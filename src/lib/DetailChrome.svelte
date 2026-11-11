@@ -222,6 +222,7 @@
 			transform: translate3d(100%, 0, 0);
 			transition: transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 			pointer-events: none;
+			/* List underlay scale/dim is owned by UiShell (:has(.detail.open)). */
 		}
 
 		.detail.open {
