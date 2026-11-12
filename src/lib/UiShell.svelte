@@ -4,6 +4,7 @@
 	 * Apps pass sections and own domain logic; this owns chrome presentation.
 	 */
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
+	import MenuToggle from './icons/MenuToggle.svelte';
 	import NavIcon from './NavIcon.svelte';
 	import PullToRefresh from './PullToRefresh.svelte';
 
@@ -27,6 +28,7 @@
 	 *   title?: string,
 	 *   counts?: Record<string, number>,
 	 *   wideList?: boolean,
+	 *   listSize?: 'default' | 'chat',
 	 *   syncing?: boolean,
 	 *   searchEnabled?: boolean,
 	 *   feedPadClass?: string,
@@ -59,6 +61,8 @@
 		title = '',
 		counts = {},
 		wideList = false,
+		/** Wider list column (Chat feed on desktop). */
+		listSize = 'default',
 		syncing = false,
 		searchEnabled = true,
 		feedPadClass = '',
@@ -92,16 +96,16 @@
 	let search = $state('');
 	let createMenuOpen = $state(false);
 	let filterOpen = $state(false);
-	/** Mobile sidebar drawer (list pages). Desktop sidebar stays in-flow. */
+	/** Mobile expanding nav panel. Desktop sidebar stays in-flow. */
 	let mobileNavOpen = $state(false);
-	/** Live drag offset (px) while edge-swiping the drawer; null when idle. */
-	let drawerDragX = $state(/** @type {number | null} */ (null));
+	/** 0..1 while dragging the menu open/closed; null when idle. */
+	let menuDrag = $state(/** @type {number | null} */ (null));
 	let isMobileViewport = $state(false);
 	/** Ignore our own pushState/back while syncing the Android-back trap. */
 	let ignoreNavPop = false;
 	/** Last path we armed — popstate with a path change is section back, not nav. */
 	let navArmedPath = '';
-	/** Only close the drawer when the section href actually changes. */
+	/** Only close the menu when the section href actually changes. */
 	let lastNavHref = '';
 
 	$effect(() => {
@@ -153,15 +157,6 @@
 		return Boolean(workspace?.querySelector('.detail.open'));
 	}
 
-	function drawerWidthPx() {
-		if (!shellEl) return 0;
-		const raw = getComputedStyle(shellEl).getPropertyValue('--mobile-drawer').trim();
-		if (raw.endsWith('vw')) return (parseFloat(raw) / 100) * window.innerWidth;
-		if (raw.endsWith('px')) return parseFloat(raw);
-		const n = parseFloat(raw);
-		return Number.isFinite(n) ? n : window.innerWidth * 0.67;
-	}
-
 	/** Drop the alphaNav flag without walking history (section changes). */
 	function clearNavHistoryFlag() {
 		if (typeof history === 'undefined' || !history.state?.alphaNav) return;
@@ -179,7 +174,7 @@
 	 */
 	function closeMobileNav(opts = {}) {
 		const useHistory = opts.history !== false;
-		drawerDragX = null;
+		menuDrag = null;
 		if (!mobileNavOpen) {
 			if (!useHistory) clearNavHistoryFlag();
 			return;
@@ -209,13 +204,9 @@
 		if (detailOpen()) return;
 		if (!isMobileShell()) return;
 		const useHistory = opts.history !== false;
-		drawerDragX = null;
+		menuDrag = null;
 		mobileNavOpen = true;
-		if (
-			useHistory &&
-			typeof history !== 'undefined' &&
-			!history.state?.alphaNav
-		) {
+		if (useHistory && typeof history !== 'undefined' && !history.state?.alphaNav) {
 			ignoreNavPop = true;
 			history.pushState({ ...(history.state || {}), alphaNav: true }, '');
 			queueMicrotask(() => {
@@ -308,17 +299,17 @@
 			}
 			if (pathChanged) {
 				mobileNavOpen = false;
-				drawerDragX = null;
+				menuDrag = null;
 				return;
 			}
 			if (history.state?.alphaNav) {
 				mobileNavOpen = true;
-				drawerDragX = null;
+				menuDrag = null;
 				return;
 			}
 			if (mobileNavOpen) {
 				mobileNavOpen = false;
-				drawerDragX = null;
+				menuDrag = null;
 				return;
 			}
 			/* Same-URL back on a main list page opens the nav instead of leaving. */
@@ -329,257 +320,308 @@
 		return () => window.removeEventListener('popstate', onPop);
 	});
 
-	/* Full-page swipe right to open / left to close the mobile sidebar drawer. */
+	/*
+	 * Touch swipe → expanding menu panel (same expand as the toggle).
+	 * Open: left-edge swipe right only (keeps scroll / PTR clean).
+	 * Close: swipe left on scrim or content while the panel is open.
+	 */
 	$effect(() => {
 		const root = shellEl;
 		if (!root || typeof window === 'undefined') return;
 
-		const OPEN_THRESHOLD = 0.28;
-		const CLOSE_THRESHOLD = 0.22;
-		const CLAIM = 12;
+		const EDGE = 28;
+		const CLAIM = 10;
+		const SPAN = 200;
+		const OPEN_AT = 0.28;
+		const CLOSE_AT = 0.28;
 
-		/** @type {number | null} */
-		let pointerId = null;
 		let startX = 0;
 		let startY = 0;
 		/** @type {'open' | 'close' | null} */
 		let mode = null;
 		let claimed = false;
 		let startOpen = false;
+		let tracking = false;
+		let suppressToggleClick = false;
 
-		function onPointerDown(e) {
-			if (!(e instanceof PointerEvent)) return;
-			if (e.pointerType === 'mouse' && e.button !== 0) return;
+		/** @param {TouchEvent} e */
+		function onStart(e) {
 			if (!isMobileShell() || detailOpen()) return;
+			if (e.touches.length !== 1) return;
 			const t = e.target;
-			/* Never start a drawer drag from chrome controls — a menu tap was
-			   opening then immediately closing via the same gesture's pointerup. */
 			if (
 				t instanceof Element &&
 				t.closest(
-					'button, a, input, textarea, select, [role="button"], [contenteditable="true"], [data-no-nav-swipe]'
+					'input, textarea, select, [contenteditable="true"], [data-no-nav-swipe]'
 				)
 			) {
 				return;
 			}
-			startX = e.clientX;
-			startY = e.clientY;
+			/* Panel chrome / nav links own their taps — don't start a drag there. */
+			if (t instanceof Element && t.closest('.sidebar')) return;
+
+			const touch = e.touches[0];
+			startX = touch.clientX;
+			startY = touch.clientY;
 			startOpen = mobileNavOpen;
-			mode = mobileNavOpen ? 'close' : 'open';
 			claimed = false;
-			pointerId = e.pointerId;
+			tracking = false;
+			mode = null;
+			menuDrag = null;
+
+			if (mobileNavOpen) {
+				mode = 'close';
+				tracking = true;
+				return;
+			}
+			/* Open only from the left edge — mid-page right-swipes fought scroll on phones. */
+			if (touch.clientX <= EDGE) {
+				mode = 'open';
+				tracking = true;
+			}
 		}
 
-		function onPointerMove(e) {
-			if (pointerId == null || e.pointerId !== pointerId || !mode) return;
-			const dx = e.clientX - startX;
-			const dy = e.clientY - startY;
+		/** @param {TouchEvent} e */
+		function onMove(e) {
+			if (!tracking || !mode || e.touches.length !== 1) return;
+			const touch = e.touches[0];
+			const dx = touch.clientX - startX;
+			const dy = touch.clientY - startY;
 			if (!claimed) {
 				if (Math.abs(dx) < CLAIM && Math.abs(dy) < CLAIM) return;
-				if (Math.abs(dy) >= Math.abs(dx) * 0.85) {
-					pointerId = null;
+				/* Vertical wins — abandon (let scroll / PTR run). */
+				if (Math.abs(dy) > Math.abs(dx) * 0.85) {
+					tracking = false;
 					mode = null;
-					drawerDragX = null;
+					menuDrag = null;
 					return;
 				}
 				if (mode === 'open' && dx < 0) {
-					pointerId = null;
+					tracking = false;
+					mode = null;
+					return;
+				}
+				if (mode === 'close' && dx > 0) {
+					tracking = false;
 					mode = null;
 					return;
 				}
 				claimed = true;
-				try {
-					root.setPointerCapture(pointerId);
-				} catch {
-					/* ignore */
-				}
+				suppressToggleClick = true;
 			}
 			e.preventDefault();
-			const w = drawerWidthPx();
 			if (mode === 'open') {
-				drawerDragX = Math.max(0, Math.min(w, dx));
+				menuDrag = Math.max(0, Math.min(1, dx / SPAN));
 			} else {
-				drawerDragX = Math.max(0, Math.min(w, w + dx));
+				menuDrag = Math.max(0, Math.min(1, 1 + dx / SPAN));
 			}
 		}
 
-		function finish(e) {
-			if (pointerId == null || e.pointerId !== pointerId) return;
-			const w = drawerWidthPx() || 1;
-			const x = drawerDragX;
-			const wasClaimed = claimed;
-			pointerId = null;
-			mode = null;
-			claimed = false;
-			if (!wasClaimed || x == null) {
-				drawerDragX = null;
+		function onEnd() {
+			if (!tracking) {
+				suppressToggleClick = false;
 				return;
 			}
-			const nextOpen = startOpen
-				? x / w > 1 - CLOSE_THRESHOLD
-				: x / w >= OPEN_THRESHOLD;
-			drawerDragX = null;
-			if (nextOpen) openMobileNav({ history: true });
-			else closeMobileNav({ history: true });
-		}
-
-		function onPointerCancel(e) {
-			if (pointerId == null || e.pointerId !== pointerId) return;
-			pointerId = null;
+			const p = menuDrag;
+			const wasClaimed = claimed;
+			tracking = false;
 			mode = null;
 			claimed = false;
-			drawerDragX = null;
+			if (!wasClaimed || p == null) {
+				menuDrag = null;
+				queueMicrotask(() => {
+					suppressToggleClick = false;
+				});
+				return;
+			}
+			const nextOpen = startOpen ? p > 1 - CLOSE_AT : p >= OPEN_AT;
+			menuDrag = null;
+			if (nextOpen) openMobileNav({ history: true });
+			else closeMobileNav({ history: true });
+			queueMicrotask(() => {
+				suppressToggleClick = false;
+			});
 		}
 
-		root.addEventListener('pointerdown', onPointerDown, { passive: true });
-		root.addEventListener('pointermove', onPointerMove, { passive: false });
-		root.addEventListener('pointerup', finish);
-		root.addEventListener('pointercancel', onPointerCancel);
+		/** Swallow the click that follows a finished drag on the toggle. */
+		function onClickCapture(e) {
+			if (!suppressToggleClick) return;
+			const t = e.target;
+			if (t instanceof Element && t.closest('.mobile-nav-toggle')) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}
+
+		root.addEventListener('touchstart', onStart, { passive: true, capture: true });
+		root.addEventListener('touchmove', onMove, { passive: false, capture: true });
+		root.addEventListener('touchend', onEnd, { capture: true });
+		root.addEventListener('touchcancel', onEnd, { capture: true });
+		root.addEventListener('click', onClickCapture, true);
 		return () => {
-			root.removeEventListener('pointerdown', onPointerDown);
-			root.removeEventListener('pointermove', onPointerMove);
-			root.removeEventListener('pointerup', finish);
-			root.removeEventListener('pointercancel', onPointerCancel);
+			root.removeEventListener('touchstart', onStart, true);
+			root.removeEventListener('touchmove', onMove, true);
+			root.removeEventListener('touchend', onEnd, true);
+			root.removeEventListener('touchcancel', onEnd, true);
+			root.removeEventListener('click', onClickCapture, true);
 		};
 	});
 
-	const drawerStyle = $derived.by(() => {
-		if (drawerDragX == null) return undefined;
-		const w = drawerWidthPx() || 1;
-		const p = Math.max(0, Math.min(1, drawerDragX / w));
-		return `--drawer-progress: ${p};`;
-	});
+	const menuProgress = $derived(
+		menuDrag != null ? menuDrag : mobileNavOpen ? 1 : 0
+	);
 </script>
 
 <div
 	class="shell {feedPadClass}"
 	class:nav-open={mobileNavOpen}
-	class:nav-dragging={drawerDragX != null}
+	class:nav-dragging={menuDrag != null}
+	class:list-chat={listSize === 'chat'}
 	bind:this={shellEl}
-	style={drawerStyle}
+	style="--menu-progress: {menuProgress}"
 >
 	{#if banners}
 		{@render banners()}
 	{/if}
-	<aside
-		class="sidebar"
-		id="alpha-shell-sidebar"
-		aria-hidden={isMobileViewport && !mobileNavOpen ? true : undefined}
-	>
-		<header class="side-top">
-			{#if sidebarLead}
-				{@render sidebarLead()}
-			{/if}
-			{#if searchEnabled}
-				<label class="search">
-					<span class="sr-only">Search</span>
-					<svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-						<path
-							d="M7 12.5A5.5 5.5 0 1 0 7 1.5a5.5 5.5 0 0 0 0 11Zm0 0L14 14.5"
-							stroke="currentColor"
-							stroke-width="1.5"
-							stroke-linecap="round"
-						/>
-					</svg>
-					<input type="search" placeholder="Search" bind:value={search} autocomplete="off" />
-				</label>
-			{:else}
-				<span class="side-spacer"></span>
-			{/if}
-			{#if createMenuItems.length}
-				<div class="create-wrap">
-					<button
-						type="button"
-						class="top-plus"
-						aria-label="Create"
-						aria-expanded={createMenuOpen}
-						onclick={() => (createMenuOpen = !createMenuOpen)}
-					>
-						<svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-							<path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+
+	{#if isMobileViewport}
+		<button
+			type="button"
+			class="nav-menu-scrim"
+			class:on={mobileNavOpen || menuProgress > 0.02}
+			style="opacity: {Math.min(1, menuProgress)}"
+			aria-label="Close menu"
+			tabindex={mobileNavOpen ? 0 : -1}
+			onclick={() => closeMobileNav()}
+		></button>
+	{/if}
+
+	<aside class="sidebar" id="alpha-shell-sidebar">
+		{#if isMobileViewport}
+			<button
+				type="button"
+				class="mobile-nav-toggle"
+				aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
+				aria-expanded={mobileNavOpen}
+				aria-controls="alpha-shell-sidebar"
+				onclick={toggleMobileNav}
+			>
+				<MenuToggle open={menuProgress > 0.5} align="left" size={18} />
+			</button>
+		{/if}
+		<div
+			class="sidebar-inner"
+			aria-hidden={isMobileViewport && menuProgress < 0.02 ? true : undefined}
+		>
+			<header class="side-top">
+				{#if sidebarLead}
+					{@render sidebarLead()}
+				{/if}
+				{#if searchEnabled}
+					<label class="search">
+						<span class="sr-only">Search</span>
+						<svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+							<path
+								d="M7 12.5A5.5 5.5 0 1 0 7 1.5a5.5 5.5 0 0 0 0 11Zm0 0L14 14.5"
+								stroke="currentColor"
+								stroke-width="1.5"
+								stroke-linecap="round"
+							/>
 						</svg>
-					</button>
-					{#if createMenuOpen}
+						<input type="search" placeholder="Search" bind:value={search} autocomplete="off" />
+					</label>
+				{:else}
+					<span class="side-spacer"></span>
+				{/if}
+				{#if createMenuItems.length}
+					<div class="create-wrap">
 						<button
 							type="button"
-							class="menu-scrim"
-							aria-label="Close"
-							onclick={() => (createMenuOpen = false)}
-						></button>
-						<div class="create-menu" role="menu">
-							{#each createMenuItems as item (item.kind)}
-								<button type="button" role="menuitem" onclick={() => create(item.kind)}>{item.label}</button>
-							{/each}
-						</div>
-					{/if}
+							class="top-plus"
+							aria-label="Create"
+							aria-expanded={createMenuOpen}
+							onclick={() => (createMenuOpen = !createMenuOpen)}
+						>
+							<svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+								<path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+							</svg>
+						</button>
+						{#if createMenuOpen}
+							<button
+								type="button"
+								class="menu-scrim"
+								aria-label="Close"
+								onclick={() => (createMenuOpen = false)}
+							></button>
+							<div class="create-menu" role="menu">
+								{#each createMenuItems as item (item.kind)}
+									<button type="button" role="menuitem" onclick={() => create(item.kind)}>{item.label}</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</header>
+
+			<nav class="sidebar-nav" aria-label="Sections">
+				{#each filteredNav as item (item.href)}
+					{@const count = item.countKey ? counts[item.countKey] : null}
+					{@const rowActive = active(item.href)}
+					<div
+						class="nav-row"
+						class:active={rowActive}
+						class:creatable={Boolean(item.createKind)}
+					>
+						<button
+							type="button"
+							class="nav-item"
+							class:active={rowActive}
+							onclick={() => go(item.href)}
+						>
+							<span class="icon-wrap"><NavIcon name={item.icon} size={18} /></span>
+							<span class="nav-label">{item.label}</span>
+						</button>
+						{#if item.createKind || count != null}
+							<span class="row-end">
+								{#if count != null}
+									<span class="count">{count}</span>
+								{/if}
+								{#if item.createKind}
+									<button
+										type="button"
+										class="row-plus"
+										aria-label={`New ${item.createKind}`}
+										onclick={() => onNavPlus(item.createKind)}
+									>
+										<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+											<path
+												d="M6 1.5v9M1.5 6h9"
+												stroke="currentColor"
+												stroke-width="1.6"
+												stroke-linecap="round"
+											/>
+										</svg>
+									</button>
+								{/if}
+							</span>
+						{/if}
+					</div>
+				{/each}
+			</nav>
+			{#if sidebarTrail}
+				<div class="sidebar-trail">
+					{@render sidebarTrail()}
 				</div>
 			{/if}
-		</header>
-
-		<nav class="sidebar-nav" aria-label="Sections">
-			{#each filteredNav as item (item.href)}
-				{@const count = item.countKey ? counts[item.countKey] : null}
-				{@const rowActive = active(item.href)}
-				<div
-					class="nav-row"
-					class:active={rowActive}
-					class:creatable={Boolean(item.createKind)}
-				>
-					<button
-						type="button"
-						class="nav-item"
-						class:active={rowActive}
-						onclick={() => go(item.href)}
-					>
-						<span class="icon-wrap"><NavIcon name={item.icon} size={18} /></span>
-						<span class="nav-label">{item.label}</span>
-					</button>
-					{#if item.createKind || count != null}
-						<span class="row-end">
-							{#if count != null}
-								<span class="count">{count}</span>
-							{/if}
-							{#if item.createKind}
-								<button
-									type="button"
-									class="row-plus"
-									aria-label={`New ${item.createKind}`}
-									onclick={() => onNavPlus(item.createKind)}
-								>
-									<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-										<path
-											d="M6 1.5v9M1.5 6h9"
-											stroke="currentColor"
-											stroke-width="1.6"
-											stroke-linecap="round"
-										/>
-									</svg>
-								</button>
-							{/if}
-						</span>
-					{/if}
-				</div>
-			{/each}
-		</nav>
-		{#if sidebarTrail}
-			<div class="sidebar-trail">
-				{@render sidebarTrail()}
-			</div>
-		{/if}
+		</div>
 	</aside>
 
 	<div class="workspace-wrap">
-		<button
-			type="button"
-			class="nav-peek"
-			aria-label="Close menu"
-			tabindex={mobileNavOpen ? 0 : -1}
-			onclick={closeMobileNav}
-		></button>
 		<div class="workspace">
 			<section
 				class="list-col"
 				class:wide={wideList}
+				class:chat={listSize === 'chat'}
 				aria-label={resolvedTitle}
 				bind:this={listColEl}
 			>
@@ -587,35 +629,6 @@
 					class="list-top"
 					style="--chrome-scroll-fade: {listFade}"
 				>
-					{#if isMobileViewport}
-						<button
-							type="button"
-							class="chrome-btn mobile-menu-btn"
-							class:nav-hidden={mobileNavOpen || (drawerDragX != null && drawerDragX > 8)}
-							aria-label="Menu"
-							aria-expanded={mobileNavOpen}
-							aria-controls="alpha-shell-sidebar"
-							tabindex={mobileNavOpen ? -1 : 0}
-							onclick={toggleMobileNav}
-						>
-							<!-- Inline like filter/plus so stroke scales with the icon (not non-scaling). -->
-							<svg
-								class="chrome-ico menu-ico"
-								width="16"
-								height="16"
-								viewBox="0 0 16 16"
-								fill="none"
-								aria-hidden="true"
-							>
-								<path
-									d="M2.75 3.75h10.5M2.75 8h10.5M2.75 12.25h7"
-									stroke="currentColor"
-									stroke-width="1.5"
-									stroke-linecap="round"
-								/>
-							</svg>
-						</button>
-					{/if}
 					{#if listTitleSlot}
 						{@render listTitleSlot()}
 					{:else}
@@ -755,6 +768,21 @@
 		gap: 10px;
 		background: var(--shell);
 		color: var(--white);
+		box-sizing: border-box;
+	}
+
+	.sidebar-inner {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		flex: 1;
+		gap: 10px;
+		overflow: hidden;
+	}
+
+	.mobile-nav-toggle,
+	.nav-menu-scrim {
+		display: none;
 	}
 
 	.side-top {
@@ -1105,10 +1133,6 @@
 		position: relative;
 	}
 
-	.nav-peek {
-		display: none;
-	}
-
 	.workspace {
 		flex: 1;
 		min-width: 0;
@@ -1136,8 +1160,9 @@
 		overflow: hidden;
 	}
 
-	.mobile-menu-btn {
-		display: none;
+	.list-col.chat {
+		flex-basis: var(--list-chat, var(--list));
+		width: var(--list-chat, var(--list));
 	}
 
 	.list-col.wide {
@@ -1375,46 +1400,149 @@
 	}
 
 	@media (max-width: 767px) {
-		/* Full-bleed shell — darker than desktop workspace; matches desktop sidebar */
 		.shell {
 			--chrome-fade: var(--shell);
-			/* Page peeks ~33% when drawer open; sidebar fills the rest */
-			--mobile-drawer: 67vw;
-			--drawer-progress: 0;
+			--menu-progress: 0;
 			--feed-pad-top: calc(52px + env(safe-area-inset-top, 0px));
-			/* Bottom pill removed — only safe-area + short fade */
 			--feed-pad-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
 			position: relative;
-			flex-direction: row;
+			flex-direction: column;
 			padding-bottom: 0;
 			background: var(--shell);
 			touch-action: pan-y;
-		}
-
-		.shell.nav-open {
-			--drawer-progress: 1;
 		}
 
 		.shell.tasks-pad {
 			--feed-pad-top: calc(56px + env(safe-area-inset-top, 0px));
 		}
 
-		.sidebar {
-			display: flex;
-			position: absolute;
-			left: 0;
-			top: 0;
-			bottom: 0;
-			width: var(--mobile-drawer);
-			z-index: 1;
-			padding: calc(10px + env(safe-area-inset-top, 0px)) 14px
-				calc(12px + env(safe-area-inset-bottom, 0px));
+		/* Modal-style scrim behind the expanding menu panel */
+		.nav-menu-scrim {
+			display: block;
+			position: fixed;
+			inset: 0;
+			z-index: 85;
+			margin: 0;
+			padding: 0;
+			border: 0;
+			background: var(--scrim);
+			cursor: pointer;
 			pointer-events: none;
+			opacity: 0;
+			transition: opacity 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.nav-menu-scrim.on {
+			pointer-events: auto;
+		}
+
+		.shell.nav-dragging .nav-menu-scrim {
+			transition: none;
+		}
+
+		/*
+		 * Expanding menu: circle chrome button → rounded rectangle panel.
+		 * Stays fixed in the top-left chrome slot (does not slide the page).
+		 */
+		.sidebar {
+			position: fixed;
+			z-index: 90;
+			top: calc(6px + env(safe-area-inset-top, 0px));
+			left: 14px;
+			width: 44px;
+			height: 44px;
+			padding: 0;
+			gap: 0;
+			border-radius: 9999px;
+			border: 1px solid transparent;
+			background:
+				linear-gradient(var(--glass), var(--glass)) padding-box,
+				var(--glass-shine) border-box;
+			color: var(--fg-66);
+			overflow: hidden;
+			box-shadow: 0 8px 28px color-mix(in srgb, var(--fg-raw, #000) calc(18% * var(--menu-progress)), transparent);
+			backdrop-filter: blur(var(--glass-blur));
+			-webkit-backdrop-filter: blur(var(--glass-blur));
+			transform: scale(calc(0.96 + 0.04 * var(--menu-progress)));
+			transform-origin: top left;
+			transition:
+				width 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				height 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				max-height 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				border-radius 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				padding 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				background 0.28s ease,
+				box-shadow 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+			pointer-events: auto;
 		}
 
 		.shell.nav-open .sidebar,
 		.shell.nav-dragging .sidebar {
+			width: min(300px, calc(100vw - 28px));
+			height: auto;
+			max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+			padding: 10px 12px 12px;
+			border-radius: 22px;
+			background: var(--glass-panel);
+			color: var(--fg);
+		}
+
+		.shell.nav-dragging .sidebar {
+			/* Live drag: circle → panel (width + max-height so height doesn't jump) */
+			width: calc(44px + (min(300px, 100vw - 28px) - 44px) * var(--menu-progress));
+			height: auto;
+			max-height: calc(
+				44px + (100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 44px) *
+					var(--menu-progress)
+			);
+			padding: calc(10px * var(--menu-progress)) calc(12px * var(--menu-progress));
+			border-radius: calc(9999px - (9999px - 22px) * var(--menu-progress));
+			transition: none;
+		}
+
+		.mobile-nav-toggle {
+			display: grid;
+			place-items: center;
+			position: absolute;
+			top: 0;
+			left: 0;
+			z-index: 2;
+			width: 44px;
+			height: 44px;
+			margin: 0;
+			padding: 0;
+			border: 0;
+			border-radius: 9999px;
+			background: transparent;
+			color: inherit;
+			cursor: pointer;
+			-webkit-tap-highlight-color: transparent;
+		}
+
+		.shell.nav-open .mobile-nav-toggle {
+			color: var(--fg-66);
+		}
+
+		.sidebar-inner {
+			opacity: var(--menu-progress);
+			pointer-events: none;
+			transform: translate3d(0, calc(6px * (1 - var(--menu-progress))), 0);
+			transition:
+				opacity 0.22s ease,
+				transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+			padding-top: 44px;
+			min-height: 0;
+			flex: 1;
+			overflow: hidden;
+		}
+
+		.shell.nav-open .sidebar-inner {
 			pointer-events: auto;
+		}
+
+		.shell.nav-dragging .sidebar-inner {
+			transition: none;
 		}
 
 		.workspace-wrap {
@@ -1426,74 +1554,16 @@
 			min-height: 0;
 			padding: 0;
 			display: flex;
-			transform: translate3d(
-					calc(var(--mobile-drawer) * var(--drawer-progress)),
-					0,
-					0
-				)
-				scale(calc(1 - 0.045 * var(--drawer-progress)));
-			transform-origin: left center;
-			border-radius: calc(20px * var(--drawer-progress));
-			margin-block: calc(12px * var(--drawer-progress));
-			height: calc(100% - (24px * var(--drawer-progress)));
 			overflow: hidden;
 			background: var(--shell);
-			box-shadow:
-				0 0 0 calc(1px * var(--drawer-progress))
-					color-mix(in srgb, var(--fg) 14%, transparent),
-				0 0 0 0 transparent;
-			transition:
-				transform 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				border-radius 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				margin-block 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				height 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				box-shadow 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
-			will-change: transform;
-		}
-
-		.shell.nav-dragging .workspace-wrap {
-			transition: none;
-		}
-
-		.shell.nav-open .workspace-wrap,
-		.shell.nav-dragging .workspace-wrap {
-			box-shadow:
-				0 0 0 calc(1px * var(--drawer-progress))
-					color-mix(in srgb, var(--fg) 12%, transparent),
-				-8px 0 28px color-mix(in srgb, var(--fg-raw, #000) 18%, transparent);
-		}
-
-		.nav-peek {
-			display: block;
-			position: absolute;
-			inset: 0;
-			z-index: 70;
-			margin: 0;
-			padding: 0;
-			border: 0;
-			border-radius: inherit;
-			background: transparent;
-			cursor: pointer;
-			pointer-events: none;
-			opacity: 0;
-		}
-
-		.shell.nav-open .nav-peek {
-			pointer-events: auto;
 		}
 
 		.workspace {
-			border-radius: inherit;
+			border-radius: 0;
 			border: 0;
 			background: var(--shell);
 			width: 100%;
-			/* Peek: keep page bg, just quiet the content */
-			opacity: calc(1 - 0.2 * var(--drawer-progress));
-			transition: opacity 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
-		}
-
-		.shell.nav-dragging .workspace {
-			transition: none;
+			overflow: hidden;
 		}
 
 		.list-col {
@@ -1503,37 +1573,39 @@
 			min-width: 0;
 			border-right: 0;
 			background: var(--shell);
-			transform-origin: center center;
+			transform-origin: left center;
+			/* Paired with DetailColumn: underlay parks left while detail covers */
+			transform: translate3d(calc(-30% * var(--detail-progress, 0)), 0, 0)
+				scale(calc(1 - 0.08 * var(--detail-progress, 0)));
+			border-radius: calc(14px * var(--detail-progress, 0));
 			transition:
-				transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				border-radius 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+				transform 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				border-radius 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+			will-change: transform;
 		}
 
-		/* iOS-like underlay when detail slides over the list */
+		/* iOS-like: list slides left + dims while detail enters from the right */
 		.list-col::before {
 			content: '';
 			position: absolute;
 			inset: 0;
 			z-index: 40;
 			border-radius: inherit;
-			background: color-mix(in srgb, var(--fg-raw, #000) 28%, transparent);
-			opacity: 0;
+			background: color-mix(in srgb, var(--fg-raw, #000) 36%, transparent);
+			opacity: var(--detail-progress, 0);
 			pointer-events: none;
-			transition: opacity 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+			transition: opacity 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 		}
 
-		:global(.workspace:has(.detail.open)) .list-col {
-			transform: scale(0.92);
-			border-radius: 16px;
-		}
-
-		:global(.workspace:has(.detail.open)) .list-col::before {
-			opacity: 1;
+		:global(.workspace.detail-dragging) .list-col,
+		:global(.workspace.detail-dragging) .list-col::before {
+			transition: none;
 		}
 
 		.list-top {
 			height: calc(88px + env(safe-area-inset-top, 0px));
-			padding: calc(6px + env(safe-area-inset-top, 0px)) 14px 34px 14px;
+			/* Leave room for the fixed expanding menu circle on the left */
+			padding: calc(6px + env(safe-area-inset-top, 0px)) 14px 34px 66px;
 			align-items: center;
 			background: transparent;
 			gap: 8px;
@@ -1550,32 +1622,9 @@
 			);
 		}
 
-		.mobile-menu-btn {
-			position: relative;
-			z-index: 2;
-			display: grid;
-			flex-shrink: 0;
-			align-self: center;
-			transition:
-				opacity 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				transform 0.28s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
-		}
-
 		.list-top > .list-actions {
 			position: relative;
 			z-index: 2;
-		}
-
-		.mobile-menu-btn.nav-hidden {
-			opacity: 0;
-			transform: scale(0.86);
-			pointer-events: none;
-		}
-
-		/* Slightly larger than filter/plus so the short-bar glyph reads at the same weight */
-		.mobile-menu-btn .menu-ico {
-			width: 24px;
-			height: 24px;
 		}
 
 		/* Soft veil at bottom (safe-area only — no pill) */

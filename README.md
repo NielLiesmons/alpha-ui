@@ -7,7 +7,7 @@ Shared design-system package for Admin, Player, Bley, and later customer UIs.
 
 ## Install (local apps)
 
-**Local sibling** (dev machine with all Alpha repos checked out next to each other):
+Sibling checkout + file dependency:
 
 ```json
 {
@@ -16,8 +16,6 @@ Shared design-system package for Admin, Player, Bley, and later customer UIs.
   }
 }
 ```
-
-**Deploy / CI** (one-repo workflows): vendor a copy at `vendor/alpha-ui` and depend on `file:./vendor/alpha-ui`, then sync from this repo after design-system changes. Admin, AlphaMail, Bley, and Niel already do this.
 
 Then `npm install` / `bun install`. Vite apps should set:
 
