@@ -43,7 +43,9 @@
 		"./icons/Play.svelte": "./src/lib/icons/Play.svelte",
 		"./icons/Pause.svelte": "./src/lib/icons/Pause.svelte",
 		"./icons/Menu.svelte": "./src/lib/icons/Menu.svelte",
-		"./icons/MenuToggle.svelte": "./src/lib/icons/MenuToggle.svelte"
+		"./icons/MenuToggle.svelte": "./src/lib/icons/MenuToggle.svelte",
+		"./icons/Folder.svelte": "./src/lib/icons/Folder.svelte",
+		"./icons/Search.svelte": "./src/lib/icons/Search.svelte"
 	},
 	"files": [
 		"icons",

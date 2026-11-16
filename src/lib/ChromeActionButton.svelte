@@ -32,10 +32,10 @@
 	{#if children}
 		{@render children()}
 	{:else if variant === 'more'}
-		<svg width="26" height="26" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-			<circle cx="9" cy="3.75" r="1.65" fill="currentColor" />
-			<circle cx="9" cy="9" r="1.65" fill="currentColor" />
-			<circle cx="9" cy="14.25" r="1.65" fill="currentColor" />
+		<svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+			<circle cx="9" cy="4.5" r="1.35" fill="currentColor" />
+			<circle cx="9" cy="9" r="1.35" fill="currentColor" />
+			<circle cx="9" cy="13.5" r="1.35" fill="currentColor" />
 		</svg>
 	{/if}
 </button>
@@ -78,10 +78,10 @@
 		height: 16px;
 	}
 
-	/* Larger ⋮ inside the same glass hit target (Admin overflow language). */
+	/* ⋮ inside the same glass hit target — keep compact (was briefly oversized). */
 	.chrome-btn.more-btn :global(svg) {
-		width: 20px;
-		height: 20px;
+		width: 16px;
+		height: 16px;
 	}
 
 	@media (max-width: 767px) {
@@ -97,13 +97,13 @@
 		}
 
 		.chrome-btn :global(svg) {
-			width: 22px;
-			height: 22px;
+			width: 20px;
+			height: 20px;
 		}
 
 		.chrome-btn.more-btn :global(svg) {
-			width: 26px;
-			height: 26px;
+			width: 20px;
+			height: 20px;
 		}
 	}
 </style>
