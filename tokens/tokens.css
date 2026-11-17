@@ -120,8 +120,12 @@
 		color-mix(in srgb, var(--fg) 8%, transparent) 55%,
 		color-mix(in srgb, var(--fg) 28%, transparent) 100%
 	);
-	/* Chat / comment bottom bars — lighter lift so composers stand out from panels */
-	--composer-bg: color-mix(in srgb, var(--fg) 10%, var(--bg));
+	/* Chat / comment bottom bars — same glass@72% + blur; fill a touch lighter than --lift (6%→9%) */
+	--composer-bg: color-mix(
+		in srgb,
+		color-mix(in srgb, color-mix(in srgb, var(--fg) 9%, var(--bg)) 66%, transparent) 72%,
+		transparent
+	);
 	--nav-selected: var(--glass);
 	--feed-bg: var(--bg);
 	--bubble-bg: color-mix(in srgb, var(--fg) 12%, transparent);
@@ -145,7 +149,7 @@
 	--shell-col-sum: calc(1 + var(--phi) + var(--phi) * var(--phi));
 	--side: clamp(210px, calc(100vw / var(--shell-col-sum)), 280px);
 	--list: calc(var(--side) * var(--phi));
-	/* Chat list column sits a step toward φ² so the feed breathes */
+	/* Chat equalizes 2nd/3rd columns in UiShell (.list-chat); token kept for callers */
 	--list-chat: var(--list);
 	--radius-16: 16px;
 	--radius-hero: 32px;
@@ -198,7 +202,11 @@
 	);
 	--glass-blur: 22px;
 	--glass-border: color-mix(in srgb, var(--fg) 12%, transparent);
-	--composer-bg: color-mix(in srgb, var(--fg) 10%, var(--bg));
+	--composer-bg: color-mix(
+		in srgb,
+		color-mix(in srgb, color-mix(in srgb, var(--fg) 9%, var(--bg)) 66%, transparent) 72%,
+		transparent
+	);
 	--nav-selected: var(--glass);
 	--feed-bg: var(--bg);
 	--bubble-bg: color-mix(in srgb, var(--fg) 12%, transparent);
@@ -315,7 +323,11 @@
 			color-mix(in srgb, var(--fg) 5.5%, var(--shell)) 92%,
 			transparent
 		);
-		--composer-bg: color-mix(in srgb, var(--fg) 10%, var(--bg));
+		--composer-bg: color-mix(
+			in srgb,
+			color-mix(in srgb, color-mix(in srgb, var(--fg) 9%, var(--bg)) 66%, transparent) 72%,
+			transparent
+		);
 		/* Float panels sit on shell — slightly stronger frost than desktop workspace */
 		--float-panel-bg: color-mix(in srgb, #ffffff 11%, transparent);
 		--float-trigger-on: color-mix(in srgb, #ffffff 11%, transparent);
