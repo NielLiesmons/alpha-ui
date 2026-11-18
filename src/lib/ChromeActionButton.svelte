@@ -1,12 +1,13 @@
 <script>
 	/**
 	 * Shared top-bar glass action button (Admin + Player).
-	 * Same 28→44 glass round chrome; `more` uses a larger vertical ⋮ glyph inside.
+	 * Desktop 28×28 radius 10px; mobile 44 round. Glass + --glass-shine.
 	 * @type {{
 	 *   variant?: 'more' | 'icon',
 	 *   label?: string,
 	 *   expanded?: boolean,
 	 *   onclick?: (e: MouseEvent) => void,
+	 *   onpointerdown?: (e: PointerEvent) => void,
 	 *   class?: string,
 	 *   children?: import('svelte').Snippet
 	 * }}
@@ -16,6 +17,7 @@
 		label = 'More',
 		expanded = false,
 		onclick = () => {},
+		onpointerdown = undefined,
 		class: className = '',
 		children
 	} = $props();
@@ -28,6 +30,7 @@
 	aria-expanded={expanded}
 	aria-haspopup={variant === 'more' ? 'menu' : undefined}
 	{onclick}
+	{onpointerdown}
 >
 	{#if children}
 		{@render children()}
