@@ -693,7 +693,7 @@
 							queueMicrotask(() => searchInputEl?.focus());
 						}}
 					>
-						<Search size={16} />
+						<Search size={13} />
 					</button>
 				{/if}
 				{#if createMenuItems.length}
