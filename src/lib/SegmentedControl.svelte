@@ -39,7 +39,7 @@
 		align-items: stretch;
 		gap: 2px;
 		min-height: 40px;
-		padding: 3px;
+		padding: 4px;
 		border-radius: 999px;
 		border: 1px solid color-mix(in srgb, var(--fg, var(--ink)) 10%, transparent);
 		background: color-mix(in srgb, var(--fg, var(--ink)) 4%, transparent);
