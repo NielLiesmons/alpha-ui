@@ -16,25 +16,26 @@
 
 :root {
 	/*
-	 * Two accents: 1 = primary / closed / CTA · 2 = progress / urgency / destructive
+	 * Three accents (Zapstore lineage):
+	 * 1 = primary / success / closed · 2 = gold / progress · 3 = rouge / destructive / urgency
+	 * Customer sites may still derive companion accents from a single brand --accent.
 	 */
 	--accent-1: #5a58fe;
 	--accent-1-66: color-mix(in srgb, var(--accent-1) 66%, transparent);
 	--accent-1-33: color-mix(in srgb, var(--accent-1) 33%, transparent);
-	--accent-2: #ed5e44;
+	--accent-2: #ffb338;
 	--accent-2-66: color-mix(in srgb, var(--accent-2) 66%, transparent);
 	--accent-2-33: color-mix(in srgb, var(--accent-2) 33%, transparent);
-	/* Second accent doubles as urgent / destructive */
-	--accent-3: var(--accent-2);
-	--accent-3-66: var(--accent-2-66);
-	--accent-3-33: var(--accent-2-33);
-	--accent-3-16: color-mix(in srgb, var(--accent-2) 16%, transparent);
+	--accent-3: #ff4778;
+	--accent-3-66: color-mix(in srgb, var(--accent-3) 66%, transparent);
+	--accent-3-33: color-mix(in srgb, var(--accent-3) 33%, transparent);
+	--accent-3-16: color-mix(in srgb, var(--accent-3) 16%, transparent);
 
 	--gradient-accent-1: radial-gradient(circle at top left, #5c5fff 0%, #4542ff 100%);
 	--gradient-accent-1-hover: radial-gradient(circle at top left, #4245ff 0%, #2c29ff 100%);
-	--gradient-accent-2: radial-gradient(circle at top left, #f37450 0%, #e74939 100%);
-	--gradient-accent-3: var(--gradient-accent-2);
-	--gradient-accent-3-16: radial-gradient(circle at top left, #f3745029 0%, #e7493929 100%);
+	--gradient-accent-2: radial-gradient(circle at top left, #ffc736 0%, #ffa037 100%);
+	--gradient-accent-3: radial-gradient(circle at top left, #ff4778 0%, #ff005e 100%);
+	--gradient-accent-3-16: radial-gradient(circle at top left, #ff477829 0%, #ff005e29 100%);
 
 	/* CTA — ~8% white base + very light accent tint for contrast on dark panels */
 	--button-primary-bg: linear-gradient(
