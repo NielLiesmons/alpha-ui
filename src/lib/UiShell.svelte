@@ -1268,8 +1268,12 @@
 
 	.top-search:hover,
 	.top-plus:hover {
-		color: var(--fg);
 		transform: scale(1.06);
+	}
+
+	.top-search:active,
+	.top-plus:active {
+		transform: scale(0.96);
 	}
 
 	.icon-wrap.png,
