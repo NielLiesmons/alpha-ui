@@ -5,8 +5,6 @@
 	 *
 	 * @typedef {{ value: string, label: string, badge?: number }} SegOption
 	 */
-	import UnreadMark from './UnreadMark.svelte';
-
 	let {
 		options = /** @type {SegOption[]} */ ([]),
 		value = '',
@@ -26,7 +24,7 @@
 		>
 			<span class="seg-label">{opt.label}</span>
 			{#if (opt.badge ?? 0) > 0}
-				<UnreadMark count={opt.badge} size={6} />
+				<span class="seg-badge">{opt.badge > 9 ? '9+' : opt.badge}</span>
 			{/if}
 		</button>
 	{/each}
@@ -88,6 +86,22 @@
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.seg-badge {
+		flex-shrink: 0;
+		font-family: 'Inter', var(--font), system-ui, sans-serif;
+		font-size: 11px;
+		font-weight: 600;
+		font-variant-numeric: lining-nums;
+		font-feature-settings: 'lnum' 1, 'tnum' 0, 'onum' 0;
+		color: var(--fg-33, color-mix(in srgb, var(--fg, var(--ink)) 33%, transparent));
+		letter-spacing: 0;
+		line-height: 1;
+	}
+
+	.seg-btn.on .seg-badge {
+		color: var(--fg-66, color-mix(in srgb, var(--fg, var(--ink)) 66%, transparent));
 	}
 
 	.seg-btn:hover {

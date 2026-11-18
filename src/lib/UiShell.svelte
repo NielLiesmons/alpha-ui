@@ -89,7 +89,7 @@
 		activeHref = '',
 		title = '',
 		counts = {},
-		/** Targeted-at-you unread (accent UnreadMark). Inventory stays in `counts`. */
+		/** Targeted-at-you unread (accent UnreadMark). `counts` = muted “new” totals. */
 		unreadCounts = {},
 		wideList = false,
 		/** Wider list column (Chat feed on desktop). */
@@ -833,29 +833,34 @@
 								</span>
 								<span class="nav-label">{item.label}</span>
 							</button>
-							{#if item.createKind || count != null || unread > 0}
+							{#if item.createKind || (count != null && count > 0) || unread > 0}
 								<span class="row-end">
 									{#if unread > 0}
 										<UnreadMark count={unread} />
-									{:else if count != null}
-										<span class="count">{count}</span>
 									{/if}
-									{#if item.createKind}
-										<button
-											type="button"
-											class="row-plus"
-											aria-label={`New ${item.createKind}`}
-											onclick={() => onNavPlus(item.createKind)}
-										>
-											<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-												<path
-													d="M6 1.5v9M1.5 6h9"
-													stroke="currentColor"
-													stroke-width="1.6"
-													stroke-linecap="round"
-												/>
-											</svg>
-										</button>
+									{#if (count != null && count > 0) || item.createKind}
+										<span class="row-end-stack">
+											{#if count != null && count > 0}
+												<span class="count">{count}</span>
+											{/if}
+											{#if item.createKind}
+												<button
+													type="button"
+													class="row-plus"
+													aria-label={`New ${item.createKind}`}
+													onclick={() => onNavPlus(item.createKind)}
+												>
+													<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+														<path
+															d="M6 1.5v9M1.5 6h9"
+															stroke="currentColor"
+															stroke-width="1.6"
+															stroke-linecap="round"
+														/>
+													</svg>
+												</button>
+											{/if}
+										</span>
 									{/if}
 								</span>
 							{/if}
@@ -1501,7 +1506,7 @@
 
 	.nav-row.creatable .nav-item,
 	.nav-row:has(.row-end) .nav-item {
-		padding-right: 36px;
+		padding-right: 56px;
 	}
 
 	.icon-wrap {
@@ -1526,12 +1531,23 @@
 		position: absolute;
 		right: 6px;
 		top: 50%;
-		width: 24px;
+		min-width: 24px;
 		height: 24px;
 		transform: translateY(-50%);
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 6px;
+		pointer-events: none;
+	}
+
+	.row-end-stack {
+		position: relative;
+		width: 24px;
+		height: 24px;
 		display: grid;
 		place-items: center;
-		pointer-events: none;
+		flex-shrink: 0;
 	}
 
 	.count,

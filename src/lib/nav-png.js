@@ -25,6 +25,8 @@ const ALIAS = {
 	files: 'folder',
 	drive: 'folder',
 	note: 'notes',
+	/* Nav / content-type keys use plural; asset is project.png */
+	projects: 'project',
 	inbox: 'mail',
 	message: 'mail',
 	messages: 'chat'
