@@ -1383,7 +1383,7 @@
 
 	.nav-block.expanded {
 		border-radius: 22px;
-		padding-bottom: 6px;
+		padding-bottom: 4px;
 	}
 
 	.nav-row {
