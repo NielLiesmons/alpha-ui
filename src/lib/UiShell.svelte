@@ -6,6 +6,7 @@
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import { navPngUrl } from './nav-png.js';
 	import NavIcon from './NavIcon.svelte';
+	import UnreadMark from './UnreadMark.svelte';
 	import Search from './icons/Search.svelte';
 	import PullToRefresh from './PullToRefresh.svelte';
 
@@ -49,8 +50,10 @@
 	 *   activeHref?: string,
 	 *   title?: string,
 	 *   counts?: Record<string, number>,
+	 *   unreadCounts?: Record<string, number>,
 	 *   wideList?: boolean,
 	 *   listSize?: 'default' | 'chat',
+	 *   listCompact?: boolean,
 	 *   commsFeed?: boolean,
 	 *   syncing?: boolean,
 	 *   searchEnabled?: boolean,
@@ -86,9 +89,13 @@
 		activeHref = '',
 		title = '',
 		counts = {},
+		/** Targeted-at-you unread (accent UnreadMark). Inventory stays in `counts`. */
+		unreadCounts = {},
 		wideList = false,
 		/** Wider list column (Chat feed on desktop). */
 		listSize = 'default',
+		/** Chat: shrink feed to φ `--list` when a deeper detail page is open. */
+		listCompact = false,
 		/** Chat/mail: slightly recessed feed canvas in light mode. */
 		commsFeed = false,
 		syncing = false,
@@ -148,6 +155,19 @@
 	let lastNavHref = '';
 	/** Detail pane covering the list — hide the menu chrome so back stays usable. */
 	let detailCovering = $state(false);
+	/**
+	 * Chat width morph only after a compact↔wide toggle on Chat —
+	 * never when first landing on the section (wide is the default).
+	 */
+	let chatWasCompact = $state(false);
+
+	$effect(() => {
+		if (listSize !== 'chat') {
+			chatWasCompact = false;
+			return;
+		}
+		if (listCompact) chatWasCompact = true;
+	});
 
 	$effect(() => {
 		if (typeof window === 'undefined') return;
@@ -357,6 +377,28 @@
 		lastNavHref = href;
 	});
 
+	/** Re-push alphaNavTrap so the next Android back opens nav instead of exiting. */
+	function rearmNavTrap() {
+		if (typeof window === 'undefined' || typeof history === 'undefined') return;
+		if (!isMobileShell()) return;
+		if (detailOpen()) return;
+		if (history.state?.alphaNav || history.state?.alphaNavTrap) return;
+		const path = window.location.pathname;
+		ignoreNavPop = true;
+		const base = {
+			...(history.state || {}),
+			alphaShell: true,
+			alphaPath: path
+		};
+		if (!(history.state?.alphaShell && history.state?.alphaPath === path)) {
+			history.replaceState(base, '');
+		}
+		history.pushState({ ...base, alphaNavTrap: true }, '');
+		queueMicrotask(() => {
+			ignoreNavPop = false;
+		});
+	}
+
 	/* Arm one same-URL history entry so Android back can open the nav. */
 	$effect(() => {
 		if (typeof window === 'undefined') return;
@@ -364,7 +406,9 @@
 		activeHref;
 		const path = window.location.pathname;
 		navArmedPath = path;
-		if (history.state?.alphaPath === path && history.state?.alphaShell) return;
+		/* Already have an open-nav or trap entry on this path — don't stack more. */
+		if (history.state?.alphaNav) return;
+		if (history.state?.alphaNavTrap && history.state?.alphaPath === path) return;
 		ignoreNavPop = true;
 		const base = {
 			...(history.state || {}),
@@ -389,6 +433,7 @@
 				navClosePending = false;
 				mobileNavOpen = false;
 				menuDrag = null;
+				rearmNavTrap();
 				return;
 			}
 			if (ignoreNavPop) return;
@@ -418,6 +463,8 @@
 			if (mobileNavOpen) {
 				mobileNavOpen = false;
 				menuDrag = null;
+				/* Trap was consumed — re-arm so the next back opens nav again. */
+				rearmNavTrap();
 				return;
 			}
 			/* Same-URL back on a main list page opens the nav instead of leaving. */
@@ -582,6 +629,8 @@
 	class:nav-dragging={menuDrag != null}
 	class:detail-covering={detailCovering}
 	class:list-chat={listSize === 'chat'}
+	class:chat-compact={listSize === 'chat' && listCompact}
+	class:chat-was-compact={listSize === 'chat' && chatWasCompact}
 	class:comms-feed={commsFeed}
 	bind:this={shellEl}
 	style="--menu-progress: {menuProgress}"
@@ -750,6 +799,10 @@
 				{:else}
 					{@const item = /** @type {ShellSection} */ (entry)}
 					{@const count = item.countKey ? counts[item.countKey] : null}
+					{@const unread =
+						item.countKey && unreadCounts[item.countKey] != null
+							? Number(unreadCounts[item.countKey]) || 0
+							: 0}
 					{@const rowActive = active(item.href)}
 					{@const kids = item.children || []}
 					{@const expanded = rowActive && kids.length > 0}
@@ -780,9 +833,11 @@
 								</span>
 								<span class="nav-label">{item.label}</span>
 							</button>
-							{#if item.createKind || count != null}
+							{#if item.createKind || count != null || unread > 0}
 								<span class="row-end">
-									{#if count != null}
+									{#if unread > 0}
+										<UnreadMark count={unread} />
+									{:else if count != null}
 										<span class="count">{count}</span>
 									{/if}
 									{#if item.createKind}
@@ -1527,7 +1582,9 @@
 	}
 
 	.nav-row.creatable:hover .count,
-	.nav-row.creatable:focus-within .count {
+	.nav-row.creatable:focus-within .count,
+	.nav-row.creatable:hover :global(.unread-mark),
+	.nav-row.creatable:focus-within :global(.unread-mark) {
 		opacity: 0;
 	}
 
@@ -1583,10 +1640,43 @@
 		overflow: hidden;
 	}
 
-	/* Chat uses the same 2nd-column width as Notes / Mail / Tasks / … */
+	/* Chat: wide is the default; morph only after a compact toggle (not on section enter). */
 	.list-col.chat {
-		flex-basis: var(--list);
-		width: var(--list);
+		flex-basis: var(--list-chat, var(--list));
+		width: var(--list-chat, var(--list));
+	}
+
+	@media (min-width: 768px) {
+		.shell.list-chat:not(.chat-compact) .list-col.chat {
+			flex: 0 0 var(--list-chat, clamp(480px, 52vw, 780px));
+			width: var(--list-chat, clamp(480px, 52vw, 780px));
+			min-width: 360px;
+		}
+
+		.shell.list-chat.chat-compact .list-col.chat {
+			flex: 0 0 var(--list);
+			width: var(--list);
+			min-width: 280px;
+		}
+
+		.shell.list-chat.chat-compact .list-col.chat,
+		.shell.list-chat.chat-was-compact:not(.chat-compact) .list-col.chat {
+			transition:
+				flex-basis 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				width 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				min-width 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
+
+		.shell.list-chat :global(.detail) {
+			flex: 1 1 0;
+			width: auto;
+			min-width: 0;
+		}
+
+		.shell.list-chat.chat-compact :global(.detail),
+		.shell.list-chat.chat-was-compact:not(.chat-compact) :global(.detail) {
+			transition: flex-basis 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+		}
 	}
 
 	.list-col.wide {
