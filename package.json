@@ -48,7 +48,8 @@
 		"./icons/Menu.svelte": "./src/lib/icons/Menu.svelte",
 		"./icons/MenuToggle.svelte": "./src/lib/icons/MenuToggle.svelte",
 		"./icons/Folder.svelte": "./src/lib/icons/Folder.svelte",
-		"./icons/Search.svelte": "./src/lib/icons/Search.svelte"
+		"./icons/Search.svelte": "./src/lib/icons/Search.svelte",
+		"./icons/At.svelte": "./src/lib/icons/At.svelte"
 	},
 	"files": [
 		"icons",
