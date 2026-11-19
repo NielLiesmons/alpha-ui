@@ -1,0 +1,45 @@
+/*
+ * Mobile scrollbars — design system default.
+ *
+ * ≤767px: hide scrollbars everywhere; overflow / touch scrolling still works.
+ * Opt in with `.show-scrollbar` only when a visible track is intentional
+ * (rare: scroll affordance otherwise unclear — no fade, no peek of more content).
+ * Horizontal emoji rows, pill tracks, segmented controls stay hidden (default).
+ *
+ * Import: `@import '@alpha/ui/scrollbars.css';`
+ * Also pulled in by `tokens.css`.
+ */
+
+@media (max-width: 767px) {
+	*,
+	*::before,
+	*::after {
+		scrollbar-width: none;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	*::-webkit-scrollbar {
+		display: none;
+		width: 0;
+		height: 0;
+	}
+
+	.show-scrollbar {
+		scrollbar-width: thin;
+	}
+
+	.show-scrollbar::-webkit-scrollbar {
+		display: block;
+		width: 6px;
+		height: 6px;
+	}
+
+	.show-scrollbar::-webkit-scrollbar-thumb {
+		background: var(--fg-16, color-mix(in srgb, currentColor 16%, transparent));
+		border-radius: 999px;
+	}
+
+	.show-scrollbar::-webkit-scrollbar-track {
+		background: transparent;
+	}
+}

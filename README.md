@@ -32,6 +32,13 @@ ssr: { noExternal: ['@alpha/ui'] }
 @import '@alpha/ui/tokens.css';
 ```
 
+Apps that skip the full token sheet can still pull shared surfaces:
+
+```css
+@import '@alpha/ui/popover.css';
+@import '@alpha/ui/scrollbars.css'; /* mobile: hide scrollbars; opt in with .show-scrollbar */
+```
+
 Apps keep font `@import`s and product CSS. Do not fork token values in app `:root` — override Space brand knobs (`--accent`, fonts) on `<html>` instead (see `alpha-docs/ADR-shared-design-system.md`).
 
 ## Icons

@@ -10,9 +10,11 @@
  *
  * Import: `@import '@alpha/ui/tokens.css';`
  * Popover surface (also imported below): `@import '@alpha/ui/popover.css';`
+ * Mobile scrollbars (also imported below): `@import '@alpha/ui/scrollbars.css';`
  */
 
 @import './popover.css';
+@import './scrollbars.css';
 
 :root {
 	/*
