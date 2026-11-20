@@ -248,7 +248,7 @@
 		}
 
 		.body {
-			padding-top: calc(56px + env(safe-area-inset-top, 0px));
+			padding-top: var(--detail-scroll-pad-top-mobile, calc(56px + env(safe-area-inset-top, 0px)));
 			padding-left: 14px;
 			padding-right: 14px;
 			padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));

@@ -70,6 +70,7 @@ Stroke weight from CSS `--icon-stroke` with `vector-effect: non-scaling-stroke`.
 | `ChatComposer.svelte` | Presentational composer pill chrome |
 | `FeedEntityPanel.svelte` | Mail / task / note panel in a chat feed |
 | `ListTitleChrome.svelte` | List-column title (root large / nested round-back + muted) |
+| `DetailTitleRow.svelte` | Detail entity title row spacing + typography (Notes / Tasks / Mail) |
 | `Modal.svelte` | Bottom / floating sheet |
 | `CreateSheet.svelte` | Create/edit overlay (keyboard-aware) |
 | `FloatPanel.svelte` | Portaled glass popover |

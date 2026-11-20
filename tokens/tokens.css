@@ -158,6 +158,19 @@
 	--radius-hero: 32px;
 	--ease: cubic-bezier(0.22, 1, 0.36, 1);
 
+	/*
+	 * Detail entity title row (Notes / Tasks / Mail / Projects) — DetailTitleRow.
+	 * Scroll pad clears the solid band under ChromeMobileBar (bar is taller / translucent).
+	 * Do not use the full 88px bar height as content pad — that overshoots Notes/Tasks.
+	 */
+	--detail-scroll-pad-top: 56px;
+	--detail-scroll-pad-top-mobile: calc(56px + env(safe-area-inset-top, 0px));
+	--detail-title-size: 1.55rem;
+	--detail-title-line-height: 1.2;
+	--detail-title-row-pad-y-start: 4px;
+	--detail-title-row-pad-y-start-mobile: 10px;
+	--detail-title-row-pad-y-end: 10px;
+
 	--ink: var(--fg);
 	--ink-raw: var(--fg-raw);
 	--ink83: var(--fg-83);

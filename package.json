@@ -33,6 +33,7 @@
 		"./ChatComposer.svelte": "./src/lib/ChatComposer.svelte",
 		"./FeedEntityPanel.svelte": "./src/lib/FeedEntityPanel.svelte",
 		"./ListTitleChrome.svelte": "./src/lib/ListTitleChrome.svelte",
+		"./DetailTitleRow.svelte": "./src/lib/DetailTitleRow.svelte",
 		"./UnreadMark.svelte": "./src/lib/UnreadMark.svelte",
 		"./NavIcon.svelte": "./src/lib/NavIcon.svelte",
 		"./nav-png.js": "./src/lib/nav-png.js",
