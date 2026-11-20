@@ -16,13 +16,13 @@
 
 <div class="detail-title-row {className}">
 	{#if leading}
-		<span class="detail-title-side leading">{render leading()}</span>
+		<span class="detail-title-side leading">{@render leading()}</span>
 	{/if}
 	<div class="detail-title-main">
 		{@render children?.()}
 	</div>
 	{#if trailing}
-		<span class="detail-title-side trailing">{render trailing()}</span>
+		<span class="detail-title-side trailing">{@render trailing()}</span>
 	{/if}
 </div>
 
