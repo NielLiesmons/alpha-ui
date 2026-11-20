@@ -1,6 +1,8 @@
 <script>
 	/**
 	 * Mobile pull-to-refresh over a nested scroller (.feed / .fill / .body).
+	 * Visual = empty space only while pulling / refreshing (no spinner/label in the gap).
+	 * Title-chrome spinner is owned by ListTitleChrome / section sync.
 	 * @type {{
 	 *   onRefresh: () => Promise<void> | void,
 	 *   disabled?: boolean,
@@ -102,13 +104,7 @@
 		class:on={pulling || refreshing}
 		style:height="{refreshing ? 36 : pullPx}px"
 		aria-hidden="true"
-	>
-		{#if refreshing || pullPx >= THRESHOLD}
-			<span class="ptr-label">{refreshing ? 'Updating…' : 'Release'}</span>
-		{:else if pullPx > 12}
-			<span class="ptr-label">Pull</span>
-		{/if}
-	</div>
+	></div>
 	{@render children()}
 </div>
 
@@ -123,22 +119,10 @@
 	}
 
 	.ptr-indicator {
-		display: flex;
-		align-items: flex-end;
-		justify-content: center;
-		overflow: hidden;
 		flex-shrink: 0;
+		overflow: hidden;
 		transition: height 0.15s ease;
 		pointer-events: none;
-	}
-
-	.ptr-label {
-		padding-bottom: 8px;
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--fg-33);
 	}
 
 	@media (min-width: 768px) {

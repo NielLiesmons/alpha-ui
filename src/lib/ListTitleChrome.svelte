@@ -4,6 +4,7 @@
 	 * Root pages: desktop muted label + mobile large page name.
 	 * Nested (canBack): desktop back + muted label; mobile round back + centered muted title
 	 * (same language as ChromeMobileBar / Admin detail).
+	 * Syncing = small spinner after the title text (not in-page “Updating”).
 	 * @type {{
 	 *   title?: string,
 	 *   canBack?: boolean,
@@ -12,6 +13,8 @@
 	 *   titleClass?: string
 	 * }}
 	 */
+	import Spinner from './Spinner.svelte';
+
 	let {
 		title = '',
 		canBack = false,
@@ -39,6 +42,9 @@
 			</svg>
 		</button>
 		<h1 class="list-title {titleClass}">{title}</h1>
+		{#if syncing}
+			<Spinner size={12} label="Refreshing" />
+		{/if}
 	</div>
 	<div class="mobile-page-title nested" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 		<button type="button" class="chrome-btn chev-back" aria-label="Back" onclick={onBack}>
@@ -54,6 +60,9 @@
 		</button>
 		<span class="mobile-title-stack centered">
 			<span class="mobile-type">{title}</span>
+			{#if syncing}
+				<Spinner size={12} label="Refreshing" />
+			{/if}
 		</span>
 	</div>
 {:else}
@@ -63,10 +72,16 @@
 		aria-busy={syncing || undefined}
 	>
 		<h1 class="list-title {titleClass}">{title}</h1>
+		{#if syncing}
+			<Spinner size={12} label="Refreshing" />
+		{/if}
 	</div>
 	<div class="mobile-page-title" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 		<span class="mobile-title-stack" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 			<h1 class="mobile-page-name">{title}</h1>
+			{#if syncing}
+				<Spinner size={12} label="Refreshing" />
+			{/if}
 		</span>
 	</div>
 {/if}
@@ -203,10 +218,10 @@
 			min-width: 0;
 			height: 44px;
 			display: flex;
-			flex-direction: column;
+			flex-direction: row;
 			align-items: center;
 			justify-content: center;
-			gap: 0;
+			gap: 6px;
 		}
 
 		.mobile-type {

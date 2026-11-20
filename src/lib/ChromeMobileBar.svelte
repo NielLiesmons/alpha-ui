@@ -4,11 +4,14 @@
 	 * Matches Admin DetailColumn mobile chrome — use from DetailChrome / nested list titles.
 	 * @type {{
 	 *   title?: string,
+	 *   syncing?: boolean,
 	 *   onBack?: () => void,
 	 *   trailing?: import('svelte').Snippet
 	 * }}
 	 */
-	let { title = '', onBack = () => {}, trailing } = $props();
+	import Spinner from './Spinner.svelte';
+
+	let { title = '', syncing = false, onBack = () => {}, trailing } = $props();
 </script>
 
 <header class="mobile-bar">
@@ -23,8 +26,11 @@
 			/>
 		</svg>
 	</button>
-	<span class="mobile-title-stack">
+	<span class="mobile-title-stack" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 		<span class="mobile-type">{title}</span>
+		{#if syncing}
+			<Spinner size={12} label="Refreshing" />
+		{/if}
 	</span>
 	<span class="trail-slot">
 		{#if trailing}
@@ -99,9 +105,10 @@
 			min-width: 0;
 			height: 44px;
 			display: flex;
-			flex-direction: column;
+			flex-direction: row;
 			align-items: center;
 			justify-content: center;
+			gap: 6px;
 		}
 
 		.mobile-type {

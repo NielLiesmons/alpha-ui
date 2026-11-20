@@ -5,6 +5,7 @@
 	 */
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import ChromeMobileBar from './ChromeMobileBar.svelte';
+	import Spinner from './Spinner.svelte';
 
 	/**
 	 * @type {{
@@ -78,6 +79,9 @@
 					</button>
 				{/if}
 				<span class="detail-top-label">{title || label}</span>
+				{#if syncing}
+					<Spinner size={12} label="Refreshing" />
+				{/if}
 			</div>
 			<div class="detail-top-actions">
 				{#if desktopActions}
