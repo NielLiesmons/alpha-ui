@@ -19,6 +19,8 @@
 		"./FloatPanel.svelte": "./src/lib/FloatPanel.svelte",
 		"./DropdownMenu.svelte": "./src/lib/DropdownMenu.svelte",
 		"./Spinner.svelte": "./src/lib/Spinner.svelte",
+		"./MetaballLoader.svelte": "./src/lib/MetaballLoader.svelte",
+		"./MetaballLoader.svelte": "./src/lib/MetaballLoader.svelte",
 		"./PullToRefresh.svelte": "./src/lib/PullToRefresh.svelte",
 		"./UiShell.svelte": "./src/lib/UiShell.svelte",
 		"./AppNav.svelte": "./src/lib/AppNav.svelte",

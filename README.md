@@ -75,7 +75,8 @@ Stroke weight from CSS `--icon-stroke` with `vector-effect: non-scaling-stroke`.
 | `CreateSheet.svelte` | Create/edit overlay (keyboard-aware) |
 | `FloatPanel.svelte` | Portaled glass popover |
 | `PullToRefresh.svelte` | Mobile pull-to-refresh |
-| `Spinner.svelte` | Loading spinner |
+| `MetaballLoader.svelte` | Soft two-ball gooey loader (product loading affordance) |
+| `Spinner.svelte` | Alias → MetaballLoader (legacy import path) |
 | `chrome-scroll-fade.js` | `--chrome-scroll-fade` driver |
 
 ### Configuring Player nav

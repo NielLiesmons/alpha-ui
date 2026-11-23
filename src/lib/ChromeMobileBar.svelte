@@ -9,7 +9,7 @@
 	 *   trailing?: import('svelte').Snippet
 	 * }}
 	 */
-	import Spinner from './Spinner.svelte';
+	import MetaballLoader from './MetaballLoader.svelte';
 
 	let { title = '', syncing = false, onBack = () => {}, trailing } = $props();
 </script>
@@ -29,7 +29,7 @@
 	<span class="mobile-title-stack" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 		<span class="mobile-type">{title}</span>
 		{#if syncing}
-			<Spinner size={12} label="Refreshing" />
+			<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
 		{/if}
 	</span>
 	<span class="trail-slot">
@@ -124,6 +124,14 @@
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		}
+
+		.title-loader {
+			display: inline-flex;
+			align-items: center;
+			flex-shrink: 0;
+			color: var(--fg-66);
+			opacity: 0.85;
 		}
 
 		.trail-slot {

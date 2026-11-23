@@ -5,6 +5,7 @@
 	 */
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import { navPngUrl } from './nav-png.js';
+	import MetaballLoader from './MetaballLoader.svelte';
 	import NavIcon from './NavIcon.svelte';
 	import UnreadMark from './UnreadMark.svelte';
 	import Search from './icons/Search.svelte';
@@ -971,7 +972,12 @@
 								</span>
 							{/if}
 							{#if !pillCompact}
-								<span class="pill-label">{resolvedTitle}</span>
+								<span class="pill-title-stack" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
+									<span class="pill-label">{resolvedTitle}</span>
+									{#if syncing}
+										<span class="pill-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
+									{/if}
+								</span>
 							{/if}
 						</button>
 					{/if}
@@ -986,6 +992,9 @@
 							aria-busy={syncing || undefined}
 						>
 							<h1 class="list-title">{resolvedTitle}</h1>
+							{#if syncing}
+								<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
+							{/if}
 						</div>
 						{#if !isMobileViewport}
 							<div class="mobile-page-title">
@@ -995,6 +1004,9 @@
 									aria-busy={syncing || undefined}
 								>
 									<h1 class="mobile-page-name">{resolvedTitle}</h1>
+									{#if syncing}
+										<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
+									{/if}
 								</span>
 							</div>
 						{/if}
@@ -1785,6 +1797,14 @@
 		color: var(--white33);
 	}
 
+	.title-loader {
+		display: inline-flex;
+		align-items: center;
+		flex-shrink: 0;
+		color: var(--fg-66);
+		opacity: 0.85;
+	}
+
 	.mobile-page-title {
 		display: none;
 	}
@@ -2219,6 +2239,13 @@
 			height: 22px;
 		}
 
+		.pill-title-stack {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			min-width: 0;
+		}
+
 		.pill-label {
 			min-width: 0;
 			overflow: hidden;
@@ -2230,6 +2257,14 @@
 			letter-spacing: -0.01em;
 			line-height: 1.1;
 			color: var(--fg-66);
+		}
+
+		.pill-loader {
+			display: inline-flex;
+			align-items: center;
+			flex-shrink: 0;
+			color: var(--fg-66);
+			opacity: 0.85;
 		}
 
 		.list-title-slot.mobile-pill-owns-title :global(.mobile-page-title) {

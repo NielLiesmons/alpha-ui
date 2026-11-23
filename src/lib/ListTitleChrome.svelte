@@ -4,7 +4,7 @@
 	 * Root pages: desktop muted label + mobile large page name.
 	 * Nested (canBack): desktop back + muted label; mobile round back + centered muted title
 	 * (same language as ChromeMobileBar / Admin detail).
-	 * Syncing = small spinner after the title text (not in-page “Updating”).
+	 * Syncing = small metaball after the title text (not in-page “Updating”).
 	 * @type {{
 	 *   title?: string,
 	 *   canBack?: boolean,
@@ -13,7 +13,7 @@
 	 *   titleClass?: string
 	 * }}
 	 */
-	import Spinner from './Spinner.svelte';
+	import MetaballLoader from './MetaballLoader.svelte';
 
 	let {
 		title = '',
@@ -43,7 +43,7 @@
 		</button>
 		<h1 class="list-title {titleClass}">{title}</h1>
 		{#if syncing}
-			<Spinner size={12} label="Refreshing" />
+			<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
 		{/if}
 	</div>
 	<div class="mobile-page-title nested" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
@@ -61,7 +61,7 @@
 		<span class="mobile-title-stack centered">
 			<span class="mobile-type">{title}</span>
 			{#if syncing}
-				<Spinner size={12} label="Refreshing" />
+				<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
 			{/if}
 		</span>
 	</div>
@@ -73,14 +73,14 @@
 	>
 		<h1 class="list-title {titleClass}">{title}</h1>
 		{#if syncing}
-			<Spinner size={12} label="Refreshing" />
+			<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
 		{/if}
 	</div>
 	<div class="mobile-page-title" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 		<span class="mobile-title-stack" class:titles-syncing={syncing} aria-busy={syncing || undefined}>
 			<h1 class="mobile-page-name">{title}</h1>
 			{#if syncing}
-				<Spinner size={12} label="Refreshing" />
+				<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
 			{/if}
 		</span>
 	</div>
@@ -112,6 +112,14 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.title-loader {
+		display: inline-flex;
+		align-items: center;
+		flex-shrink: 0;
+		color: var(--fg-66);
+		opacity: 0.85;
 	}
 
 	/* Admin Planning list — fixed label column width */

@@ -1,24 +1,18 @@
 <script>
-	/** @type {{ size?: number, label?: string }} */
+	/**
+	 * Product loader — metaball (legacy Spinner API).
+	 * Prefer importing MetaballLoader; size numbers map to sm (≤14) / default.
+	 * @type {{ size?: number | 'sm' | 'default', label?: string }}
+	 */
+	import MetaballLoader from './MetaballLoader.svelte';
+
 	let { size = 22, label = 'Loading' } = $props();
+
+	/** @param {number | 'sm' | 'default'} s */
+	function variant(s) {
+		if (s === 'sm' || s === 'default') return s;
+		return typeof s === 'number' && s <= 14 ? 'sm' : 'default';
+	}
 </script>
 
-<span class="spinner" style="width:{size}px;height:{size}px" role="status" aria-label={label}></span>
-
-<style>
-	.spinner {
-		display: inline-block;
-		box-sizing: border-box;
-		border: 2px solid var(--fg-11);
-		border-top-color: var(--fg-66);
-		border-radius: 50%;
-		animation: spin 0.7s linear infinite;
-		flex-shrink: 0;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-</style>
+<MetaballLoader size={variant(size)} {label} />

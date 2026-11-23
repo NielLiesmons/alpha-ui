@@ -5,7 +5,7 @@
 	 */
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import ChromeMobileBar from './ChromeMobileBar.svelte';
-	import Spinner from './Spinner.svelte';
+	import MetaballLoader from './MetaballLoader.svelte';
 
 	/**
 	 * @type {{
@@ -59,7 +59,7 @@
 	aria-busy={syncing || undefined}
 >
 	{#if !empty}
-		<ChromeMobileBar title={title || label} onBack={onClose} trailing={mobileTrailing} />
+		<ChromeMobileBar title={title || label} {syncing} onBack={onClose} trailing={mobileTrailing} />
 
 		<header class="detail-top desktop-head">
 			<div class="detail-top-start">
@@ -80,7 +80,7 @@
 				{/if}
 				<span class="detail-top-label">{title || label}</span>
 				{#if syncing}
-					<Spinner size={12} label="Refreshing" />
+					<span class="title-loader"><MetaballLoader size="sm" label="Refreshing" /></span>
 				{/if}
 			</div>
 			<div class="detail-top-actions">
@@ -150,6 +150,14 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.title-loader {
+		display: inline-flex;
+		align-items: center;
+		flex-shrink: 0;
+		color: var(--fg-66);
+		opacity: 0.85;
 	}
 
 	.detail-top-actions {
