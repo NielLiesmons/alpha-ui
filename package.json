@@ -42,6 +42,8 @@
 		"./icons/BaseIcon.svelte": "./src/lib/icons/BaseIcon.svelte",
 		"./icons/Pen.svelte": "./src/lib/icons/Pen.svelte",
 		"./icons/Trash.svelte": "./src/lib/icons/Trash.svelte",
+		"./icons/Archive.svelte": "./src/lib/icons/Archive.svelte",
+		"./archive-path.js": "./src/lib/archive-path.js",
 		"./icons/Next.svelte": "./src/lib/icons/Next.svelte",
 		"./icons/Previous.svelte": "./src/lib/icons/Previous.svelte",
 		"./icons/Heart.svelte": "./src/lib/icons/Heart.svelte",
