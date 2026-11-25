@@ -1,7 +1,8 @@
 <script>
 	/**
 	 * Unread mark for notifications targeted at the signed-in user.
-	 * Accent dot + count when unread > 0; quiet muted dot when empty.
+	 * Accent dot when unread > 0; quiet muted dot when empty.
+	 * Count (when present) is muted ink — never accent (DS whisper).
 	 * @type {{ count?: number, size?: number, quiet?: boolean, className?: string }}
 	 */
 	let { count = 0, size = 7, quiet = false, className = '' } = $props();
@@ -27,7 +28,10 @@
 	.unread-mark {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.3125rem;
+		/* Stable box so the accent/quiet dot stays vertically centered with or without a count. */
+		min-height: 0.75rem;
 		line-height: 1;
 		flex-shrink: 0;
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
@@ -55,8 +59,9 @@
 
 	.n {
 		font-size: 0.75rem;
-		font-weight: 650;
-		color: var(--accent-1, #5a58fe);
+		font-weight: 600;
+		line-height: 1;
+		color: var(--fg-66);
 		letter-spacing: 0;
 	}
 
