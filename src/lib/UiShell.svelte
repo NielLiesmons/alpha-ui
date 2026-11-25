@@ -580,8 +580,8 @@
 
 	/*
 	 * Mobile nav open: paint html/body + theme-color with the drawer surface (--bg)
-	 * so status-bar / home-indicator safe areas match the lighter nav panel.
-	 * Closed → restore page surface (--shell).
+	 * so status-bar / home-indicator safe areas match the lighter nav panel (top + bottom).
+	 * Closed → restore page surface (--shell). app.css: html.nav-menu-open { background: var(--bg) }.
 	 */
 	$effect(() => {
 		if (typeof document === 'undefined') return;
@@ -589,13 +589,17 @@
 		const root = document.documentElement;
 		root.classList.toggle('nav-menu-open', on);
 		const meta = document.querySelector('meta[name="theme-color"]');
-		if (!meta) return;
-		const probe = document.createElement('div');
-		probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;background:var(${on ? '--bg' : '--shell'})`;
-		root.appendChild(probe);
-		const color = getComputedStyle(probe).backgroundColor;
-		probe.remove();
-		if (color) meta.setAttribute('content', color);
+		if (meta) {
+			const probe = document.createElement('div');
+			probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;background:var(${on ? '--bg' : '--shell'})`;
+			root.appendChild(probe);
+			const color = getComputedStyle(probe).backgroundColor;
+			probe.remove();
+			if (color) meta.setAttribute('content', color);
+		}
+		return () => {
+			root.classList.remove('nav-menu-open');
+		};
 	});
 
 	/*
@@ -2558,6 +2562,11 @@
 			gap: 0.5rem;
 		}
 
+		/* Mobile only — a bit more air between account row and nav items */
+		.sidebar-inner {
+			gap: 1rem;
+		}
+
 		.account-name {
 			font-size: 0.875rem;
 		}
@@ -2599,12 +2608,17 @@
 			background: var(--shell);
 			/* Allow horizontal menu swipe + vertical scroll; claim in JS after intent. */
 			touch-action: manipulation;
+			/*
+			 * Slide + slight horizontal recess only. Uniform scale was double-counting
+			 * with margin-block and bloating the letterbox (~30px gutters); rem’d
+			 * 1.5rem height made it worse under --ui-scale. Keep gutter geometry in px.
+			 */
 			transform: translate3d(calc(var(--mobile-drawer) * var(--menu-progress)), 0, 0)
-				scale(calc(1 - 0.045 * var(--menu-progress)));
+				scale(calc(1 - 0.045 * var(--menu-progress)), 1);
 			transform-origin: left center;
-			border-radius: calc(2rem * var(--menu-progress));
+			border-radius: calc(32px * var(--menu-progress));
 			margin-block: calc(12px * var(--menu-progress));
-			height: calc(100% - (1.5rem * var(--menu-progress)));
+			height: calc(100% - (24px * var(--menu-progress)));
 			/* Quiet edge only — no fill/scrim that changes the page look */
 			box-shadow:
 				0 0 0 calc(1px * var(--menu-progress))
@@ -2644,6 +2658,12 @@
 			pointer-events: none;
 			touch-action: manipulation;
 			-webkit-tap-highlight-color: transparent;
+		}
+
+		/* Match taller nav-open list-top so the compact chevron stays tappable */
+		.shell.nav-open .nav-peek,
+		.shell.nav-dragging .nav-peek {
+			top: calc(5.125rem + (2.25rem - 12px) + env(safe-area-inset-top, 0px));
 		}
 
 		.nav-peek.on {
@@ -2698,6 +2718,19 @@
 			align-items: center;
 			background: transparent;
 			gap: 0.5rem;
+		}
+
+		/*
+		 * Nav open: page card sits in a 12px shell gutter (no vertical scale), so the
+		 * closed-state 6px pad glues the compact chevron into the 32px radius.
+		 * Top pad = sidebar pad (2.25rem) − 12px gutter — keeps chevron aligned with
+		 * the account row under --ui-scale and clears the rounded card edge.
+		 */
+		.shell.nav-open .list-top,
+		.shell.nav-dragging .list-top {
+			height: calc(5.125rem + (2.25rem - 12px) + env(safe-area-inset-top, 0px));
+			padding: calc(2.25rem - 12px + env(safe-area-inset-top, 0px)) 0.875rem 2.125rem
+				0.875rem;
 		}
 
 		.list-top::after {
