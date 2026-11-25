@@ -2105,6 +2105,12 @@
 		color: var(--white66);
 	}
 
+	/* UnreadMark count: muted white on dark nav — never accent / full ink. */
+	.nav-row :global(.unread-mark .n) {
+		color: var(--white66);
+		font-weight: 500;
+	}
+
 	.row-plus {
 		width: 1.5rem;
 		height: 1.5rem;
