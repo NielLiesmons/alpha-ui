@@ -2533,8 +2533,16 @@
 			--menu-progress: 0;
 			/* Page peeks ~33% when drawer open; sidebar fills the rest */
 			--mobile-drawer: 67vw;
-			/* Page card letterbox (px — must match workspace-wrap margin-block) */
+			/* Page card letterbox (px — must match workspace-wrap margins) */
 			--nav-open-gutter: 12px;
+			/*
+			 * Bottom letterbox clears the home indicator. The page card is --shell;
+			 * a 12px-only gutter leaves that card painting under the indicator while
+			 * theme-color already fixes the top status bar. Match sidebar bottom pad.
+			 */
+			--nav-open-gutter-bottom: calc(
+				var(--nav-open-gutter) + env(safe-area-inset-bottom, 0px)
+			);
 			/*
 			 * Shared chrome inset below safe-area for account row + compact chevron.
 			 * Keep both bars on this token so they stay vertically aligned.
@@ -2573,7 +2581,7 @@
 			padding: calc(
 					var(--nav-open-gutter) + var(--nav-open-chrome-pad) + env(safe-area-inset-top, 0px)
 				)
-				0.875rem calc(var(--nav-open-gutter) + env(safe-area-inset-bottom, 0px));
+				0.875rem var(--nav-open-gutter-bottom);
 			background: var(--bg);
 			/* Glass/lift come from theme tokens — do not re-mix ink into bg here */
 			pointer-events: none;
@@ -2658,8 +2666,19 @@
 				scale(calc(1 - 0.045 * var(--menu-progress)), 1);
 			transform-origin: left center;
 			border-radius: calc(32px * var(--menu-progress));
-			margin-block: calc(var(--nav-open-gutter) * var(--menu-progress));
-			height: calc(100% - (2 * var(--nav-open-gutter) * var(--menu-progress)));
+			/*
+			 * Asymmetric letterbox: top stays at --nav-open-gutter (theme-color paints
+			 * the status bar). Bottom uses --nav-open-gutter-bottom so the --shell card
+			 * ends above the home indicator and .shell’s --bg shows through.
+			 */
+			margin-top: calc(var(--nav-open-gutter) * var(--menu-progress));
+			margin-bottom: calc(var(--nav-open-gutter-bottom) * var(--menu-progress));
+			height: calc(
+				100% -
+					(
+						(var(--nav-open-gutter) + var(--nav-open-gutter-bottom)) * var(--menu-progress)
+					)
+			);
 			/* Quiet edge only — no fill/scrim that changes the page look */
 			box-shadow:
 				0 0 0 calc(1px * var(--menu-progress))
@@ -2668,7 +2687,8 @@
 			transition:
 				transform 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				border-radius 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
-				margin-block 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				margin-top 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				margin-bottom 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				height 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				box-shadow 0.38s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 			will-change: transform;
