@@ -694,7 +694,7 @@
 							queueMicrotask(() => searchInputEl?.focus());
 						}}
 					>
-						<Search size={13} />
+						<Search size={isMobileViewport ? 18 : 13} />
 					</button>
 				{/if}
 				{#if createMenuItems.length}
@@ -2028,15 +2028,11 @@
 			border-radius: 9999px;
 		}
 
-		/* Search glyph a touch larger than desktop chrome */
-		.top-search :global(.icon) {
+		/* Nav Search glyph — fully :global so Svelte won’t strip unused .icon */
+		:global(.top-search .icon),
+		:global(.top-search svg) {
 			width: 18px !important;
 			height: 18px !important;
-		}
-
-		.top-search :global(svg) {
-			width: 18px;
-			height: 18px;
 		}
 
 		.workspace-wrap {
