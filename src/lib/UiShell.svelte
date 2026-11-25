@@ -2028,6 +2028,17 @@
 			border-radius: 9999px;
 		}
 
+		/* Search glyph a touch larger than desktop chrome */
+		.top-search :global(.icon) {
+			width: 18px !important;
+			height: 18px !important;
+		}
+
+		.top-search :global(svg) {
+			width: 18px;
+			height: 18px;
+		}
+
 		.workspace-wrap {
 			position: relative;
 			z-index: 2;
