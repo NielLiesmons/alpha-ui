@@ -59,7 +59,7 @@
 
 	.n {
 		font-size: 0.75rem;
-		font-weight: 600;
+		font-weight: 500;
 		line-height: 1;
 		color: var(--fg-66);
 		letter-spacing: 0;
@@ -67,6 +67,6 @@
 
 	.unread-mark.quiet .n {
 		color: var(--fg-33);
-		font-weight: 600;
+		font-weight: 500;
 	}
 </style>
