@@ -152,7 +152,7 @@
 	--shell-col-sum: calc(1 + var(--phi) + var(--phi) * var(--phi));
 	--side: clamp(210px, calc(100vw / var(--shell-col-sum)), 280px);
 	--list: calc(var(--side) * var(--phi));
-	/* Chat equalizes 2nd/3rd columns in UiShell (.list-chat); token kept for callers */
+	/* Chat feed↔activity: UiShell .list-chat uses φ:1 flex grow; token is compact/fallback */
 	--list-chat: var(--list);
 	--chrome-desk: 1.75rem;
 	--chrome-mobile: 2.75rem;

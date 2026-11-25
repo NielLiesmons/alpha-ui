@@ -2181,17 +2181,24 @@
 		overflow: hidden;
 	}
 
-	/* Chat: wide is the default; morph only after a compact toggle (not on section enter). */
+	/* Chat: feed↔activity uses φ:1 grow; morph only after a compact toggle (not on section enter). */
 	.list-col.chat {
 		flex-basis: var(--list-chat, var(--list));
 		width: var(--list-chat, var(--list));
 	}
 
 	@media (min-width: 768px) {
+		/* Feed : Notifications = φ : 1 — scales on tiny laptops and ultrawide. */
 		.shell.list-chat:not(.chat-compact) .list-col.chat {
-			flex: 0 0 var(--list-chat, clamp(480px, 52vw, 780px));
-			width: var(--list-chat, clamp(480px, 52vw, 780px));
-			min-width: 360px;
+			flex: var(--phi, 1.618) 1 0;
+			width: auto;
+			min-width: 240px;
+		}
+
+		.shell.list-chat:not(.chat-compact) :global(.detail) {
+			flex: 1 1 0;
+			width: auto;
+			min-width: 200px;
 		}
 
 		.shell.list-chat.chat-compact .list-col.chat {
@@ -2203,12 +2210,13 @@
 		.shell.list-chat.chat-compact .list-col.chat,
 		.shell.list-chat.chat-was-compact:not(.chat-compact) .list-col.chat {
 			transition:
+				flex-grow 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				flex-basis 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				width 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				min-width 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 		}
 
-		.shell.list-chat :global(.detail) {
+		.shell.list-chat.chat-compact :global(.detail) {
 			flex: 1 1 0;
 			width: auto;
 			min-width: 0;
@@ -2216,7 +2224,10 @@
 
 		.shell.list-chat.chat-compact :global(.detail),
 		.shell.list-chat.chat-was-compact:not(.chat-compact) :global(.detail) {
-			transition: flex-basis 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+			transition:
+				flex-grow 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				flex-basis 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+				min-width 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 		}
 	}
 
