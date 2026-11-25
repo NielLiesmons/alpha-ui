@@ -1,7 +1,7 @@
 {
 	"name": "@alpha/ui",
 	"private": true,
-	"version": "0.2.0",
+	"version": "0.2.4",
 	"description": "Shared Alpha design system: tokens, icons, shell chrome, sheets",
 	"type": "module",
 	"exports": {
@@ -16,10 +16,11 @@
 		"./star-path.js": "./src/lib/star-path.js",
 		"./Modal.svelte": "./src/lib/Modal.svelte",
 		"./CreateSheet.svelte": "./src/lib/CreateSheet.svelte",
+		"./SheetTopbar.svelte": "./src/lib/SheetTopbar.svelte",
+		"./icons/Close.svelte": "./src/lib/icons/Close.svelte",
 		"./FloatPanel.svelte": "./src/lib/FloatPanel.svelte",
 		"./DropdownMenu.svelte": "./src/lib/DropdownMenu.svelte",
 		"./Spinner.svelte": "./src/lib/Spinner.svelte",
-		"./MetaballLoader.svelte": "./src/lib/MetaballLoader.svelte",
 		"./MetaballLoader.svelte": "./src/lib/MetaballLoader.svelte",
 		"./PullToRefresh.svelte": "./src/lib/PullToRefresh.svelte",
 		"./UiShell.svelte": "./src/lib/UiShell.svelte",
@@ -55,7 +56,19 @@
 		"./icons/MenuToggle.svelte": "./src/lib/icons/MenuToggle.svelte",
 		"./icons/Folder.svelte": "./src/lib/icons/Folder.svelte",
 		"./icons/Search.svelte": "./src/lib/icons/Search.svelte",
-		"./icons/At.svelte": "./src/lib/icons/At.svelte"
+		"./icons/At.svelte": "./src/lib/icons/At.svelte",
+		"./icons/Phone.svelte": "./src/lib/icons/Phone.svelte",
+		"./icons/VideoCall.svelte": "./src/lib/icons/VideoCall.svelte",
+		"./icons/Lock.svelte": "./src/lib/icons/Lock.svelte",
+		"./icons/ChevronRight.svelte": "./src/lib/icons/ChevronRight.svelte",
+		"./icons/Text.svelte": "./src/lib/icons/Text.svelte",
+		"./icons/Appearance.svelte": "./src/lib/icons/Appearance.svelte",
+		"./icons/Profile.svelte": "./src/lib/icons/Profile.svelte",
+		"./icons/Storage.svelte": "./src/lib/icons/Storage.svelte",
+		"./icons/OtherDevices.svelte": "./src/lib/icons/OtherDevices.svelte",
+		"./icons/Sun.svelte": "./src/lib/icons/Sun.svelte",
+		"./icons/Moon.svelte": "./src/lib/icons/Moon.svelte",
+		"./icons/ThemeSystem.svelte": "./src/lib/icons/ThemeSystem.svelte"
 	},
 	"files": [
 		"icons",

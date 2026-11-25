@@ -47,8 +47,8 @@
 	}
 
 	.menu-spacer {
-		width: 44px;
-		height: 44px;
+		width: var(--chrome-mobile, 2.75rem);
+		height: var(--chrome-mobile, 2.75rem);
 		flex-shrink: 0;
 	}
 
@@ -66,9 +66,9 @@
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			gap: 12px;
-			height: calc(88px + env(safe-area-inset-top, 0px));
-			padding: calc(6px + env(safe-area-inset-top, 0px)) 14px 34px;
+			gap: 0.75rem;
+			height: calc(5.5rem + env(safe-area-inset-top, 0px));
+			padding: calc(0.375rem + env(safe-area-inset-top, 0px)) 0.875rem 2.125rem;
 			border-bottom: none;
 			flex-shrink: 0;
 			box-sizing: border-box;
@@ -103,12 +103,12 @@
 			position: relative;
 			flex: 1;
 			min-width: 0;
-			height: 44px;
+			height: var(--chrome-mobile, 2.75rem);
 			display: flex;
 			flex-direction: row;
 			align-items: center;
 			justify-content: center;
-			gap: 6px;
+			gap: 0.375rem;
 		}
 
 		.mobile-type {
@@ -116,7 +116,7 @@
 			max-width: 100%;
 			text-align: center;
 			font-family: 'Inter', var(--font), system-ui, sans-serif;
-			font-size: 17px;
+			font-size: 1.0625rem;
 			font-weight: 600;
 			letter-spacing: -0.01em;
 			line-height: 1.15;
@@ -129,7 +129,15 @@
 		.title-loader {
 			display: inline-flex;
 			align-items: center;
-			flex-shrink: 0;
+			justify-content: center;
+			align-self: center;
+			flex: 0 0 auto;
+			margin-left: 2px;
+			line-height: 0;
+			overflow: visible;
+			padding-top: 2px;
+			box-sizing: content-box;
+			--loader-ink: var(--fg-66);
 			color: var(--fg-66);
 			opacity: 0.85;
 		}
@@ -138,17 +146,17 @@
 			display: flex;
 			align-items: center;
 			justify-content: flex-end;
-			gap: 6px;
+			gap: 0.375rem;
 			width: auto;
-			min-width: 44px;
-			max-width: min(58vw, 220px);
+			min-width: var(--chrome-mobile, 2.75rem);
+			max-width: min(58vw, 13.75rem);
 			flex-shrink: 0;
 		}
 
 		.chrome-btn,
 		.trail-slot > :global(.chrome-btn) {
-			width: 44px;
-			height: 44px;
+			width: var(--chrome-mobile, 2.75rem);
+			height: var(--chrome-mobile, 2.75rem);
 			display: grid;
 			place-items: center;
 			border: 1px solid transparent;
@@ -176,17 +184,17 @@
 
 		.chrome-btn :global(svg),
 		.trail-slot > :global(.chrome-btn svg) {
-			width: 22px;
-			height: 22px;
+			width: var(--chrome-icon, 1.375rem);
+			height: var(--chrome-icon, 1.375rem);
 		}
 
 		.trail-slot > :global(.chrome-btn.more-btn svg) {
-			width: 26px;
-			height: 26px;
+			width: 1.625rem;
+			height: 1.625rem;
 		}
 
 		.chrome-btn.chev-back :global(svg) {
-			padding-right: 2px;
+			padding-right: 0.125rem;
 			box-sizing: content-box;
 		}
 	}

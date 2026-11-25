@@ -1,16 +1,233 @@
 /*
- * Canonical floating panel surface.
+ * Canonical floating panel surface + action-row chrome.
  * FloatPanel, dropdowns, and in-flow suggestion menus all use `.alpha-popover`
  * so background, stroke, radius, shadow, and blur cannot drift apart.
+ * Matches chat scroll-to-bottom FAB: composer glass fill + specular hairline.
  * Loaded by tokens.css, and by apps that do not import the full token sheet.
+ *
+ * Action menus: prefer `.alpha-popover-list` + `.alpha-popover-item` (+ `.alpha-popover-ico`).
+ * No vertical padding on the item column; muted labels; accent-3 destructive.
  */
 
 .alpha-popover {
-	background: var(--float-panel-bg, var(--popover, var(--glass-panel, transparent)));
-	border: 1px solid color-mix(in srgb, var(--fg, var(--ink)) 10%, transparent);
-	border-radius: 14px;
+	position: relative;
+	isolation: isolate;
+	background: var(--composer-bg, var(--modal-bg, var(--glass-panel, transparent)));
+	border: 0;
+	border-radius: 0.875rem;
 	box-shadow: 0 10px 36px var(--shadow);
 	backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.2);
 	-webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(1.2);
 	box-sizing: border-box;
+}
+
+/* Specular stroke — same treatment as ChatChannelPanel `.scroll-fab::after`. */
+.alpha-popover::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: 1px;
+	pointer-events: none;
+	z-index: 1;
+	background: linear-gradient(
+		135deg,
+		color-mix(in srgb, var(--fg) 12%, transparent) 0%,
+		color-mix(in srgb, var(--fg) 3%, transparent) 45%,
+		color-mix(in srgb, var(--fg) 3%, transparent) 55%,
+		color-mix(in srgb, var(--fg) 9%, transparent) 100%
+	);
+	-webkit-mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+}
+
+/* ── Action / overflow menu rows ─────────────────────────────────────────── */
+
+.alpha-popover-list {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: auto;
+	/* Tight to first/last rows — no outer vertical padding */
+	padding: 0;
+	margin: 0;
+}
+
+.alpha-popover-item {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 0.625rem;
+	width: 100%;
+	min-height: 2.5rem;
+	padding: 0.625rem 0.875rem;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--fg-66);
+	font: inherit;
+	font-size: 0.9375rem;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.alpha-popover-item:not(:last-child) {
+	border-bottom: 0.33px solid var(--fg-8);
+}
+
+.alpha-popover-item:hover:not(:disabled),
+.alpha-popover-item:focus-visible:not(:disabled),
+.alpha-popover-item.active,
+.alpha-popover-item[aria-checked='true'],
+.alpha-popover-item.on {
+	background: var(--fg-4);
+	/* Labels stay muted — never jump to full --fg */
+	color: var(--fg-66);
+}
+
+.alpha-popover-item:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.alpha-popover-item.danger,
+.alpha-popover-item.danger:hover:not(:disabled),
+.alpha-popover-item.danger:focus-visible:not(:disabled) {
+	color: var(--destructive, var(--accent-3, #ff4778));
+}
+
+.alpha-popover-item.danger:hover:not(:disabled),
+.alpha-popover-item.danger:focus-visible:not(:disabled) {
+	background: var(--fg-8);
+}
+
+/* Unstyled square — sizes glyphs only (no bg / border / radius). */
+.alpha-popover-ico {
+	flex-shrink: 0;
+	width: 1.125rem;
+	height: 1.125rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 0;
+	color: inherit;
+	pointer-events: none;
+}
+
+.alpha-popover-ico > *,
+.alpha-popover-ico :is(svg, img) {
+	display: block;
+	max-width: 100%;
+	max-height: 100%;
+	width: auto;
+	height: auto;
+}
+
+.alpha-popover-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: inherit;
+}
+
+.alpha-popover-hint {
+	flex-shrink: 0;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--fg-33);
+}
+
+/* Alias shared dropdown class names → same row chrome (custom children snippets). */
+.dropdown-list,
+.alpha-popover .float-list,
+.alpha-popover .notif-filter-menu {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: auto;
+	padding: 0;
+	margin: 0;
+}
+
+.dropdown-item,
+.alpha-popover .float-list > .option,
+.alpha-popover .option,
+.alpha-popover .notif-filter-menu > button {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 0.625rem;
+	width: 100%;
+	min-height: 2.5rem;
+	padding: 0.625rem 0.875rem;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--fg-66);
+	font: inherit;
+	font-size: 0.9375rem;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.dropdown-item:not(:last-child),
+.alpha-popover .float-list > .option:not(:last-child),
+.alpha-popover .option:not(:last-child),
+.alpha-popover .notif-filter-menu > button:not(:last-child) {
+	border-bottom: 0.33px solid var(--fg-8);
+}
+
+.dropdown-item:hover:not(:disabled),
+.dropdown-item:focus-visible:not(:disabled),
+.dropdown-item.active,
+.dropdown-item[aria-checked='true'],
+.dropdown-item.on,
+.alpha-popover .float-list > .option:hover,
+.alpha-popover .float-list > .option.active,
+.alpha-popover .option:hover,
+.alpha-popover .option.active,
+.alpha-popover .notif-filter-menu > button:hover,
+.alpha-popover .notif-filter-menu > button.on {
+	background: var(--fg-4);
+	color: var(--fg-66);
+}
+
+.dropdown-item:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.dropdown-item.danger,
+.dropdown-item.danger:hover:not(:disabled) {
+	color: var(--destructive, var(--accent-3, #ff4778));
+}
+
+.dropdown-item.danger:hover:not(:disabled) {
+	background: var(--fg-8);
+}
+
+/* Leading icon slot when authors wrap glyphs themselves */
+.dropdown-item > :is(svg, img, .icon, [class*='icon']),
+.alpha-popover .float-list > .option > :is(svg, img, .icon, [class*='icon'], .task-box, .priority-box) {
+	flex-shrink: 0;
+}
+
+.dropdown-item .hint,
+.alpha-popover-item .hint {
+	flex-shrink: 0;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--fg-33);
 }

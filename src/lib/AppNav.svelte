@@ -112,7 +112,7 @@
 	.sidebar-nav {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 0.125rem;
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
@@ -147,16 +147,16 @@
 	.nav-item {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 0.625rem;
 		flex: 1;
 		min-width: 0;
-		padding: 8px 10px;
+		padding: 0.5rem 0.625rem;
 		border: 0;
 		border-radius: 999px;
 		background: transparent;
 		color: var(--white66);
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
-		font-size: 14px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		text-align: left;
 		cursor: pointer;
@@ -168,12 +168,12 @@
 
 	.nav-row.creatable .nav-item,
 	.nav-row:has(.row-end) .nav-item {
-		padding-right: 36px;
+		padding-right: 2.25rem;
 	}
 
 	.icon-wrap {
-		width: 18px;
-		height: 18px;
+		width: 1.125rem;
+		height: 1.125rem;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
@@ -191,10 +191,10 @@
 
 	.row-end {
 		position: absolute;
-		right: 6px;
+		right: 0.375rem;
 		top: 50%;
-		width: 24px;
-		height: 24px;
+		width: 1.5rem;
+		height: 1.5rem;
 		transform: translateY(-50%);
 		display: grid;
 		place-items: center;
@@ -209,12 +209,12 @@
 	.count {
 		display: grid;
 		place-items: center;
-		width: 24px;
-		height: 24px;
+		width: 1.5rem;
+		height: 1.5rem;
 		margin: 0;
 		padding: 0;
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
-		font-size: 12px;
+		font-size: 0.75rem;
 		font-weight: 500;
 		line-height: 1;
 		font-variant-numeric: lining-nums;
@@ -229,8 +229,8 @@
 	}
 
 	.row-plus {
-		width: 24px;
-		height: 24px;
+		width: 1.5rem;
+		height: 1.5rem;
 		display: grid;
 		place-items: center;
 		border: 0;
@@ -277,7 +277,7 @@
 			left: 0;
 			right: 0;
 			bottom: 0;
-			padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px));
+			padding: 0 0.75rem calc(0.625rem + env(safe-area-inset-bottom, 0px));
 			pointer-events: none;
 		}
 
@@ -302,7 +302,7 @@
 			scroll-snap-type: x mandatory;
 			scrollbar-width: none;
 			-ms-overflow-style: none;
-			padding: 6px 8px;
+			padding: 0.375rem 0.5rem;
 			scroll-padding-inline: 40%;
 		}
 
@@ -317,9 +317,9 @@
 			flex-direction: column;
 			align-items: center;
 			justify-content: center;
-			gap: 2px;
+			gap: 0.125rem;
 			min-width: 64px;
-			padding: 6px 10px;
+			padding: 0.375rem 0.625rem;
 			border: 0;
 			border-radius: 999px;
 			background: transparent;
@@ -334,20 +334,20 @@
 
 		.pill-icon {
 			display: flex;
-			width: 24px;
-			height: 24px;
+			width: 1.5rem;
+			height: 1.5rem;
 			align-items: center;
 			justify-content: center;
 		}
 
 		.pill-icon :global(svg) {
 			display: block;
-			max-width: 22px;
-			max-height: 20px;
+			max-width: 1.375rem;
+			max-height: 1.25rem;
 		}
 
 		.pill-label {
-			font-size: 9px;
+			font-size: 0.5625rem;
 			font-weight: 500;
 			letter-spacing: 0.02em;
 			max-width: 4.5rem;

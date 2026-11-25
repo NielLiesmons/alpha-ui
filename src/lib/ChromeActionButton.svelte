@@ -45,13 +45,13 @@
 
 <style>
 	.chrome-btn {
-		width: 28px;
-		height: 28px;
+		width: var(--chrome-desk, 1.75rem);
+		height: var(--chrome-desk, 1.75rem);
 		display: grid;
 		place-items: center;
 		padding: 0;
 		border: 1px solid transparent;
-		border-radius: 10px;
+		border-radius: var(--chrome-radius-desk, 0.625rem);
 		background:
 			linear-gradient(var(--glass), var(--glass)) padding-box,
 			var(--glass-shine) border-box;
@@ -65,9 +65,9 @@
 		flex-shrink: 0;
 	}
 
+	/* Scale only — match page topbar (UiShell); no hover color wash. */
 	.chrome-btn:hover,
 	.chrome-btn[aria-expanded='true'] {
-		color: var(--fg);
 		transform: scale(1.06);
 	}
 
@@ -77,20 +77,27 @@
 
 	.chrome-btn :global(svg) {
 		display: block;
-		width: 16px;
-		height: 16px;
+		width: var(--chrome-icon-desk, 1rem);
+		height: var(--chrome-icon-desk, 1rem);
+	}
+
+	/* Close (X) owns its size — see icons/Close.svelte (+ mobile --close-icon-size-mobile). */
+	.chrome-btn :global(.close-icon),
+	.chrome-btn :global(.close-icon svg) {
+		width: var(--close-size, 1.125rem);
+		height: var(--close-size, 1.125rem);
 	}
 
 	/* ⋮ inside the same glass hit target — keep compact (was briefly oversized). */
 	.chrome-btn.more-btn :global(svg) {
-		width: 16px;
-		height: 16px;
+		width: var(--chrome-icon-desk, 1rem);
+		height: var(--chrome-icon-desk, 1rem);
 	}
 
 	@media (max-width: 767px) {
 		.chrome-btn {
-			width: 44px;
-			height: 44px;
+			width: var(--chrome-mobile, 2.75rem);
+			height: var(--chrome-mobile, 2.75rem);
 			border-radius: 9999px;
 		}
 
@@ -100,13 +107,19 @@
 		}
 
 		.chrome-btn :global(svg) {
-			width: 20px;
-			height: 20px;
+			width: var(--chrome-icon-md, 1.25rem);
+			height: var(--chrome-icon-md, 1.25rem);
 		}
 
 		.chrome-btn.more-btn :global(svg) {
-			width: 20px;
-			height: 20px;
+			width: var(--chrome-icon-md, 1.25rem);
+			height: var(--chrome-icon-md, 1.25rem);
+		}
+
+		.chrome-btn :global(.close-icon),
+		.chrome-btn :global(.close-icon svg) {
+			width: var(--close-icon-size-mobile, 1.6875rem);
+			height: var(--close-icon-size-mobile, 1.6875rem);
 		}
 	}
 </style>

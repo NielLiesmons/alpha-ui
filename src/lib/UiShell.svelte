@@ -6,9 +6,12 @@
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import { navPngUrl } from './nav-png.js';
 	import MetaballLoader from './MetaballLoader.svelte';
+	import Modal from './Modal.svelte';
 	import NavIcon from './NavIcon.svelte';
+	import SheetTopbar from './SheetTopbar.svelte';
 	import UnreadMark from './UnreadMark.svelte';
 	import Search from './icons/Search.svelte';
+	import ChevronRight from './icons/ChevronRight.svelte';
 	import PullToRefresh from './PullToRefresh.svelte';
 
 	/**
@@ -25,6 +28,7 @@
 	 *   label: string,
 	 *   icon?: string,
 	 *   faviconUrl?: string,
+	 *   spaceBrand?: boolean,
 	 *   id?: string,
 	 *   countKey?: string,
 	 *   createKind?: string,
@@ -50,6 +54,7 @@
 	 *   mobileSections?: (ShellSection | ShellNavGroup)[] | null,
 	 *   activeHref?: string,
 	 *   title?: string,
+	 *   titleIcon?: string | false,
 	 *   counts?: Record<string, number>,
 	 *   unreadCounts?: Record<string, number>,
 	 *   wideList?: boolean,
@@ -59,9 +64,9 @@
 	 *   syncing?: boolean,
 	 *   searchEnabled?: boolean,
 	 *   feedPadClass?: string,
-	 *   filterOptions?: { id: string, label: string }[] | null,
+	 *   filterOptions?: { id: string, label: string, icon?: import('svelte').Component<any> }[] | null,
 	 *   filterValue?: string,
-	 *   createMenuItems?: { kind: string, label: string }[],
+	 *   createMenuItems?: { kind: string, label: string, icon?: string }[],
 	 *   createKind?: string | undefined,
 	 *   onNavigate?: (href: string) => void,
 	 *   onNavChild?: (parentHref: string, childId: string) => void,
@@ -80,7 +85,9 @@
 	 *   detail?: import('svelte').Snippet,
 	 *   sheets?: import('svelte').Snippet,
 	 *   banners?: import('svelte').Snippet,
-	 *   children?: import('svelte').Snippet
+	 *   children?: import('svelte').Snippet,
+	 *   listBlank?: boolean,
+	 *   listTopHidden?: boolean
 	 * }}
 	 */
 	let {
@@ -89,6 +96,8 @@
 		mobileSections: _mobileSections = null,
 		activeHref = '',
 		title = '',
+		/** Mobile title-pill icon: false = text-only; string = force nav key; omit = matched PNG/favicon. @type {string | false | undefined} */
+		titleIcon = undefined,
 		counts = {},
 		/** Targeted-at-you unread (accent UnreadMark). `counts` = muted “new” totals. */
 		unreadCounts = {},
@@ -108,6 +117,13 @@
 		createKind = undefined,
 		/** When false, only listActionsSlot is shown (Admin mail/planning chrome). */
 		defaultListActions = true,
+		/**
+		 * Mobile section switch: blank list pane so the previous page never flashes.
+		 * AppShell sets true before goto and clears afterNavigate.
+		 */
+		listBlank = false,
+		/** Hide floating list-top (e.g. full-page call setup owns SheetTopbar). */
+		listTopHidden = false,
 		onNavigate = () => {},
 		onNavChild = () => {},
 		onCreate = () => {},
@@ -137,7 +153,7 @@
 	let listFade = $state(0);
 	let search = $state('');
 	let searchOpen = $state(false);
-	let createMenuOpen = $state(false);
+	let createOpen = $state(false);
 	let filterOpen = $state(false);
 	/** @type {HTMLInputElement | undefined} */
 	let searchInputEl = $state();
@@ -162,12 +178,26 @@
 	 */
 	let chatWasCompact = $state(false);
 
+	/*
+	 * Compact↔wide morph only while staying on Chat. Leaving/entering the
+	 * section must snap widths — never animate listSize across routes.
+	 */
+	let prevListSize = /** @type {'default' | 'chat'} */ (listSize);
 	$effect(() => {
-		if (listSize !== 'chat') {
+		const size = listSize;
+		const compact = listCompact;
+		const leftOrEnteredChat = prevListSize !== size;
+		prevListSize = size;
+		if (size !== 'chat') {
 			chatWasCompact = false;
 			return;
 		}
-		if (listCompact) chatWasCompact = true;
+		if (leftOrEnteredChat) {
+			/* Fresh Chat land — wide default, no morph from prior section. */
+			chatWasCompact = false;
+			return;
+		}
+		if (compact) chatWasCompact = true;
 	});
 
 	$effect(() => {
@@ -247,26 +277,92 @@
 	);
 	const filterActive = $derived(Boolean(filterOptions) && filterValue !== 'all');
 
-	const filteredNav = $derived.by(() => {
+	/** Flat nav hits for the Search modal (sidebar always shows full `sections`). */
+	const searchHits = $derived.by(() => {
 		const q = search.trim().toLowerCase();
-		if (!q) return sections;
-		/** @type {(ShellSection | ShellNavGroup)[]} */
+		/** @type {{ href: string, label: string, icon?: string, faviconUrl?: string, spaceBrand?: boolean, group?: string }[]} */
 		const out = [];
 		for (const entry of sections) {
 			if (isNavGroup(entry)) {
 				const group = /** @type {ShellNavGroup} */ (entry);
-				const items = group.items.filter(
-					(item) =>
-						item.label.toLowerCase().includes(q) || group.label.toLowerCase().includes(q)
-				);
-				if (items.length) out.push({ ...group, items });
+				for (const item of group.items) {
+					const hay = `${item.label} ${group.label}`.toLowerCase();
+					if (!q || hay.includes(q)) {
+						out.push({
+							href: item.href,
+							label: item.label,
+							icon: item.icon,
+							faviconUrl: item.faviconUrl,
+							spaceBrand: item.spaceBrand,
+							group: group.label
+						});
+					}
+				}
 				continue;
 			}
 			const item = /** @type {ShellSection} */ (entry);
-			if (item.label.toLowerCase().includes(q)) out.push(item);
+			if (!q || item.label.toLowerCase().includes(q)) {
+				out.push({
+					href: item.href,
+					label: item.label,
+					icon: item.icon,
+					faviconUrl: item.faviconUrl,
+					spaceBrand: item.spaceBrand
+				});
+			}
 		}
 		return out;
 	});
+
+	/** Bundled image fallback when a space-brand blob/favicon fails — never NavIcon/globe. */
+	const SPACE_BRAND_IMG_FALLBACK = '/icons/icon-192.png';
+
+	/**
+	 * Favicon / space-brand rows stay on <img>. Space brand never reveals stroke NavIcon.
+	 * @param {Event} e
+	 * @param {boolean} brand
+	 */
+	function onNavFaviconError(e, brand) {
+		const el = /** @type {HTMLImageElement} */ (e.currentTarget);
+		if (brand) {
+			const cur = String(el.getAttribute('src') || '');
+			if (el.dataset.fallback !== '1' && !cur.endsWith(SPACE_BRAND_IMG_FALLBACK)) {
+				el.dataset.fallback = '1';
+				el.style.display = '';
+				el.src = SPACE_BRAND_IMG_FALLBACK;
+				return;
+			}
+			el.style.display = 'none';
+			el.dataset.failed = '1';
+			return;
+		}
+		el.style.display = 'none';
+		el.dataset.failed = '1';
+		const fallback = el.nextElementSibling;
+		if (fallback instanceof HTMLElement) fallback.hidden = false;
+	}
+
+	/** @param {string | undefined} kind */
+	function createIconFor(kind) {
+		const k = String(kind || '').toLowerCase();
+		/** @type {Record<string, string>} */
+		const map = {
+			task: 'tasks',
+			project: 'projects',
+			note: 'notes',
+			newsletter: 'publications',
+			ledger: 'accounting',
+			cost: 'accounting',
+			sales: 'accounting',
+			enterprise: 'enterprise',
+			mail: 'mail',
+			file: 'folder',
+			photo: 'photos',
+			poll: 'chat',
+			website: 'website'
+		};
+		return map[k] || k;
+	}
 
 	function isMobileShell() {
 		return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -328,18 +424,19 @@
 		const useHistory = opts.history !== false;
 		menuDrag = null;
 		mobileNavOpen = true;
-		if (useHistory && typeof history !== 'undefined' && !history.state?.alphaNav) {
-			ignoreNavPop = true;
-			history.pushState({ ...(history.state || {}), alphaNav: true }, '');
-			queueMicrotask(() => {
-				ignoreNavPop = false;
-			});
-		}
+		/* Never pushState for the drawer — it raced SvelteKit section goto. */
+		void useHistory;
 	}
 
 	function toggleMobileNav() {
-		if (mobileNavOpen) closeMobileNav();
-		else openMobileNav();
+		/*
+		 * Pill / peek toggle must NOT pushState — an alphaNav history entry per
+		 * open left a duplicate same-URL frame that raced SvelteKit goto and
+		 * emptied the list pane every other section switch.
+		 * Android-back open still uses openMobileNav({ history: true }) in popstate.
+		 */
+		if (mobileNavOpen) closeMobileNav({ history: false });
+		else openMobileNav({ history: false });
 	}
 
 	/** @param {string} href */
@@ -351,13 +448,38 @@
 
 	/** @param {string} kind */
 	function create(kind) {
-		createMenuOpen = false;
+		createOpen = false;
 		onCreate(kind);
+	}
+
+	function openSearch() {
+		createOpen = false;
+		searchOpen = true;
+		closeMobileNav({ history: false });
+		queueMicrotask(() => searchInputEl?.focus());
+	}
+
+	function closeSearch() {
+		searchOpen = false;
+		search = '';
+	}
+
+	function openCreate() {
+		searchOpen = false;
+		search = '';
+		createOpen = true;
+		closeMobileNav({ history: false });
+	}
+
+	/** @param {string} href */
+	function pickSearchHit(href) {
+		closeSearch();
+		go(href);
 	}
 
 	function onListPlus() {
 		if (resolvedCreateKind) onNavPlus(resolvedCreateKind);
-		else if (createMenuItems.length) createMenuOpen = true;
+		else if (createMenuItems.length) openCreate();
 	}
 
 	$effect(() => {
@@ -378,49 +500,20 @@
 		lastNavHref = href;
 	});
 
-	/** Re-push alphaNavTrap so the next Android back opens nav instead of exiting. */
+	/**
+	 * Android-back “trap” pushState is DISABLED — it raced SvelteKit goto and
+	 * left the list pane empty ~50% of the time on section switches (live repro).
+	 * Same-URL back still opens the drawer via popstate without pushing.
+	 */
 	function rearmNavTrap() {
-		if (typeof window === 'undefined' || typeof history === 'undefined') return;
-		if (!isMobileShell()) return;
-		if (detailOpen()) return;
-		if (history.state?.alphaNav || history.state?.alphaNavTrap) return;
-		const path = window.location.pathname;
-		ignoreNavPop = true;
-		const base = {
-			...(history.state || {}),
-			alphaShell: true,
-			alphaPath: path
-		};
-		if (!(history.state?.alphaShell && history.state?.alphaPath === path)) {
-			history.replaceState(base, '');
-		}
-		history.pushState({ ...base, alphaNavTrap: true }, '');
-		queueMicrotask(() => {
-			ignoreNavPop = false;
-		});
+		/* no-op — see comment above */
 	}
 
-	/* Arm one same-URL history entry so Android back can open the nav. */
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		if (!isMobileViewport) return;
 		activeHref;
-		const path = window.location.pathname;
-		navArmedPath = path;
-		/* Already have an open-nav or trap entry on this path — don't stack more. */
-		if (history.state?.alphaNav) return;
-		if (history.state?.alphaNavTrap && history.state?.alphaPath === path) return;
-		ignoreNavPop = true;
-		const base = {
-			...(history.state || {}),
-			alphaShell: true,
-			alphaPath: path
-		};
-		history.replaceState(base, '');
-		history.pushState({ ...base, alphaNavTrap: true }, '');
-		queueMicrotask(() => {
-			ignoreNavPop = false;
-		});
+		navArmedPath = window.location.pathname;
 	});
 
 	/* Android / browser back: sync drawer to history, or open when still on this list. */
@@ -446,8 +539,13 @@
 			const pathChanged = Boolean(navArmedPath) && path !== navArmedPath;
 			navArmedPath = path;
 
-			/* Detail layers own their history entries — don't steal that back. */
-			if (detailOpen() || history.state?.alphaLayer) {
+			/* Detail / comments overlays own their history — don't steal that back. */
+			if (
+				detailOpen() ||
+				detailCovering ||
+				history.state?.alphaLayer ||
+				history.state?.alphaComments
+			) {
 				if (mobileNavOpen) mobileNavOpen = false;
 				return;
 			}
@@ -481,7 +579,30 @@
 	);
 
 	/*
-	 * Touch swipe on the slid page → open/close the menu.
+	 * Mobile nav open: paint html/body + theme-color with the drawer surface (--bg)
+	 * so status-bar / home-indicator safe areas match the lighter nav panel.
+	 * Closed → restore page surface (--shell).
+	 */
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		const on = isMobileViewport && menuProgress > 0.02;
+		const root = document.documentElement;
+		root.classList.toggle('nav-menu-open', on);
+		const meta = document.querySelector('meta[name="theme-color"]');
+		if (!meta) return;
+		const probe = document.createElement('div');
+		probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;background:var(${on ? '--bg' : '--shell'})`;
+		root.appendChild(probe);
+		const color = getComputedStyle(probe).backgroundColor;
+		probe.remove();
+		if (color) meta.setAttribute('content', color);
+	});
+
+	/*
+	 * Touch swipe on the slid page:
+	 * - Level-one lists → open/close the nav menu
+	 * - Deeper pages (detail covering / alphaLayer / nested title) → history.back
+	 * Detail chrome owns the visual underlay when `.detail.open`; shell stays hands-off then.
 	 * Listen on the wrap (capture) so nav-peek / feed / PTR children still bubble here.
 	 * Avoid shell-level touch-action: pan-y — it lets the browser cancel horizontal claims.
 	 */
@@ -492,6 +613,7 @@
 		const CLAIM = 10;
 		const OPEN_AT = 0.2;
 		const CLOSE_AT = 0.28;
+		const BACK_AT = 0.28;
 
 		function drawerSpan() {
 			const shell = shellEl;
@@ -504,18 +626,31 @@
 			return Number.isFinite(n) && n > 0 ? n : window.innerWidth * 0.67;
 		}
 
+		/** Nested list / history layer — swipe-back instead of opening nav. */
+		function deeperPage() {
+			if (detailOpen() || detailCovering) return true;
+			if (typeof history !== 'undefined' && history.state?.alphaLayer) return true;
+			return Boolean(
+				listColEl?.querySelector('.mobile-page-title.nested, [data-swipe-back]')
+			);
+		}
+
 		let startX = 0;
 		let startY = 0;
-		/** @type {'open' | 'close' | null} */
+		/** @type {'open' | 'close' | 'back' | null} */
 		let mode = null;
 		let claimed = false;
 		let startOpen = false;
 		let tracking = false;
 		let suppressToggleClick = false;
+		/** Horizontal progress 0..1 while mode === 'back'. */
+		let backProg = 0;
 
 		/** @param {TouchEvent} e */
 		function onStart(e) {
-			if (!isMobileShell() || detailOpen()) return;
+			if (!isMobileShell()) return;
+			/* Detail column owns swipe-back + underlay when the pane is open. */
+			if (detailOpen() || detailCovering) return;
 			if (e.touches.length !== 1) return;
 			const t = e.target;
 			if (
@@ -533,8 +668,11 @@
 			startOpen = mobileNavOpen || menuProgress > 0.5;
 			claimed = false;
 			tracking = true;
-			mode = startOpen ? 'close' : 'open';
+			backProg = 0;
 			menuDrag = null;
+			if (startOpen) mode = 'close';
+			else if (deeperPage()) mode = 'back';
+			else mode = 'open';
 		}
 
 		/** @param {TouchEvent} e */
@@ -551,9 +689,10 @@
 					tracking = false;
 					mode = null;
 					menuDrag = null;
+					backProg = 0;
 					return;
 				}
-				if (mode === 'open' && dx < 0) {
+				if ((mode === 'open' || mode === 'back') && dx < 0) {
 					tracking = false;
 					mode = null;
 					return;
@@ -567,6 +706,10 @@
 				suppressToggleClick = true;
 			}
 			e.preventDefault();
+			if (mode === 'back') {
+				backProg = Math.max(0, Math.min(1, dx / span));
+				return;
+			}
 			if (mode === 'open') {
 				menuDrag = Math.max(0, Math.min(1, dx / span));
 			} else {
@@ -579,11 +722,13 @@
 				suppressToggleClick = false;
 				return;
 			}
-			const p = menuDrag;
+			const p = mode === 'back' ? backProg : menuDrag;
 			const wasClaimed = claimed;
+			const endMode = mode;
 			tracking = false;
 			mode = null;
 			claimed = false;
+			backProg = 0;
 			if (!wasClaimed || p == null) {
 				menuDrag = null;
 				queueMicrotask(() => {
@@ -591,10 +736,19 @@
 				});
 				return;
 			}
+			if (endMode === 'back') {
+				menuDrag = null;
+				if (p >= BACK_AT && typeof history !== 'undefined') history.back();
+				queueMicrotask(() => {
+					suppressToggleClick = false;
+				});
+				return;
+			}
 			const nextOpen = startOpen ? p > 1 - CLOSE_AT : p >= OPEN_AT;
 			menuDrag = null;
-			if (nextOpen) openMobileNav({ history: true });
-			else closeMobileNav({ history: true });
+			/* history:false — same as pill toggle; avoid duplicate same-URL frames. */
+			if (nextOpen) openMobileNav({ history: false });
+			else closeMobileNav({ history: false });
 			queueMicrotask(() => {
 				suppressToggleClick = false;
 			});
@@ -642,99 +796,53 @@
 
 	{#snippet sidebarBody()}
 		<header class="side-top">
-			{#if searchOpen && searchEnabled}
-				<label class="search search-expanded">
-					<span class="sr-only">Search</span>
-					<span class="search-icon" aria-hidden="true"><Search size={16} /></span>
-					<input
-						bind:this={searchInputEl}
-						type="search"
-						placeholder="Search"
-						bind:value={search}
-						autocomplete="off"
-						onkeydown={(e) => {
-							if (e.key === 'Escape') {
-								search = '';
-								searchOpen = false;
-							}
-						}}
-						onblur={() => {
-							if (!search.trim()) searchOpen = false;
-						}}
-					/>
-				</label>
+			{#if sidebarLead || accountLabel}
+				<button
+					type="button"
+					class="account-pill"
+					class:on={active('/settings')}
+					aria-label="Settings"
+					aria-current={active('/settings') ? 'page' : undefined}
+					onclick={() => go('/settings')}
+				>
+					{#if sidebarLead}
+						<span class="account-pic">{@render sidebarLead()}</span>
+					{/if}
+					{#if accountLabel}
+						<span class="account-name">{accountLabel}</span>
+					{/if}
+				</button>
 			{:else}
-				{#if sidebarLead || accountLabel}
-					<button
-						type="button"
-						class="account-pill"
-						class:on={active('/settings')}
-						aria-label="Settings"
-						aria-current={active('/settings') ? 'page' : undefined}
-						onclick={() => go('/settings')}
-					>
-						{#if sidebarLead}
-							<span class="account-pic">{@render sidebarLead()}</span>
-						{/if}
-						{#if accountLabel}
-							<span class="account-name">{accountLabel}</span>
-						{/if}
-					</button>
-				{:else}
-					<span class="side-spacer"></span>
-				{/if}
 				<span class="side-spacer"></span>
-				{#if searchEnabled}
-					<button
-						type="button"
-						class="top-search"
-						aria-label="Search"
-						onclick={() => {
-							searchOpen = true;
-							queueMicrotask(() => searchInputEl?.focus());
-						}}
-					>
-						<Search size={isMobileViewport ? 18 : 13} />
-					</button>
-				{/if}
-				{#if createMenuItems.length}
-					<div class="create-wrap">
-						<button
-							type="button"
-							class="top-plus"
-							aria-label="Create"
-							aria-expanded={createMenuOpen}
-							onclick={() => (createMenuOpen = !createMenuOpen)}
-						>
-							<svg class="chrome-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-								<path
-									d="M8 3.25v9.5M3.25 8h9.5"
-									stroke="currentColor"
-									stroke-width="1.5"
-									stroke-linecap="round"
-								/>
-							</svg>
-						</button>
-						{#if createMenuOpen}
-							<button
-								type="button"
-								class="menu-scrim"
-								aria-label="Close"
-								onclick={() => (createMenuOpen = false)}
-							></button>
-							<div class="create-menu" role="menu">
-								{#each createMenuItems as item (item.kind)}
-									<button type="button" role="menuitem" onclick={() => create(item.kind)}>{item.label}</button>
-								{/each}
-							</div>
-						{/if}
-					</div>
-				{/if}
+			{/if}
+			<span class="side-spacer"></span>
+			{#if searchEnabled}
+				<button type="button" class="top-search" aria-label="Search" onclick={openSearch}>
+					<Search size={isMobileViewport ? 18 : 13} />
+				</button>
+			{/if}
+			{#if createMenuItems.length}
+				<button
+					type="button"
+					class="top-plus"
+					aria-label="Create"
+					aria-expanded={createOpen}
+					onclick={openCreate}
+				>
+					<svg class="chrome-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+						<path
+							d="M8 3.25v9.5M3.25 8h9.5"
+							stroke="currentColor"
+							stroke-width="1.5"
+							stroke-linecap="round"
+						/>
+					</svg>
+				</button>
 			{/if}
 		</header>
 
 		<nav class="sidebar-nav" aria-label="Sections">
-			{#each filteredNav as entry (isNavGroup(entry) ? `g:${/** @type {ShellNavGroup} */ (entry).id}` : /** @type {ShellSection} */ (entry).href)}
+			{#each sections as entry (isNavGroup(entry) ? `g:${/** @type {ShellNavGroup} */ (entry).id}` : /** @type {ShellSection} */ (entry).href)}
 				{#if isNavGroup(entry)}
 					{@const group = /** @type {ShellNavGroup} */ (entry)}
 					<div class="nav-group" role="group" aria-label={group.label}>
@@ -765,6 +873,7 @@
 						{#each group.items as item (item.id || item.href)}
 							{@const rowActive = active(item.href)}
 							{@const fav = String(item.faviconUrl || '').trim()}
+							{@const brand = Boolean(item.spaceBrand)}
 							<div class="nav-block" class:active={rowActive}>
 								<div class="nav-row">
 									<button
@@ -773,20 +882,28 @@
 										class:active={rowActive}
 										onclick={() => go(item.href)}
 									>
-										<span class="icon-wrap" class:favicon={Boolean(fav)} class:empty={rowActive && !fav}>
+										<span
+											class="icon-wrap"
+											class:favicon={Boolean(fav)}
+											class:space-brand={brand}
+											class:empty={rowActive && !fav}
+										>
 											{#if fav}
 												<img
 													class="nav-favicon"
+													class:space-brand={brand}
 													src={fav}
 													alt=""
 													width="18"
 													height="18"
 													loading="lazy"
-													onerror={(e) => {
-														const el = /** @type {HTMLImageElement} */ (e.currentTarget);
-														el.style.display = 'none';
-													}}
+													onerror={(e) => onNavFaviconError(e, brand)}
 												/>
+												{#if !brand && item.icon}
+													<span class="nav-ico-fallback" hidden>
+														<NavIcon name={item.icon} size={18} />
+													</span>
+												{/if}
 											{:else if item.icon}
 												<NavIcon name={item.icon} size={18} />
 											{/if}
@@ -807,7 +924,9 @@
 					{@const rowActive = active(item.href)}
 					{@const kids = item.children || []}
 					{@const expanded = rowActive && kids.length > 0}
-					{@const png = rowActive && item.icon ? navPngUrl(item.icon) : null}
+					{@const fav = String(item.faviconUrl || '').trim()}
+					{@const brand = Boolean(item.spaceBrand)}
+					{@const png = !fav && rowActive && item.icon ? navPngUrl(item.icon) : null}
 					<div
 						class="nav-block"
 						class:active={rowActive}
@@ -823,8 +942,30 @@
 								class:active={rowActive}
 								onclick={() => go(item.href)}
 							>
-								<span class="icon-wrap" class:png={Boolean(png)} class:empty={rowActive && !png}>
-									{#if rowActive}
+								<span
+									class="icon-wrap"
+									class:favicon={Boolean(fav)}
+									class:space-brand={brand}
+									class:png={Boolean(png)}
+									class:empty={rowActive && !fav && !png}
+								>
+									{#if fav}
+										<img
+											class="nav-favicon"
+											class:space-brand={brand}
+											src={fav}
+											alt=""
+											width="18"
+											height="18"
+											loading="lazy"
+											onerror={(e) => onNavFaviconError(e, brand)}
+										/>
+										{#if !brand && item.icon}
+											<span class="nav-ico-fallback" hidden>
+												<NavIcon name={item.icon} size={18} />
+											</span>
+										{/if}
+									{:else if rowActive}
 										{#if png}
 											<img class="nav-png" src={png} alt="" width="18" height="18" />
 										{/if}
@@ -922,15 +1063,42 @@
 				class="list-col"
 				class:wide={wideList}
 				class:chat={listSize === 'chat'}
+				class:list-top-hidden={listTopHidden}
 				aria-label={resolvedTitle}
 				bind:this={listColEl}
 			>
 				<header
 					class="list-top"
+					class:hidden={listTopHidden}
 					style="--chrome-scroll-fade: {listFade}"
+					aria-hidden={listTopHidden || undefined}
 				>
 					{#if isMobileViewport}
-						{@const pillPng = navPngUrl(activeItem.icon)}
+						{@const pillMatched =
+							Boolean(activeHref) &&
+							(activeItem.href === activeHref ||
+								(activeItem.href
+									? activeHref.startsWith(`${activeItem.href}/`)
+									: false) ||
+								active(activeItem.href))}
+						{@const pillFav =
+							titleIcon === false
+								? ''
+								: typeof titleIcon === 'string'
+									? ''
+									: pillMatched
+										? String(activeItem.faviconUrl || '').trim()
+										: ''}
+						{@const pillBrand = Boolean(pillFav && activeItem.spaceBrand)}
+						{@const pillPng =
+							titleIcon === false || pillFav
+								? null
+								: typeof titleIcon === 'string'
+									? navPngUrl(titleIcon)
+									: /* Off-nav roots (Settings) fall back to Chat in activeItem — never paint Chat’s PNG on a foreign title. */
+										pillMatched
+										? navPngUrl(activeItem.icon)
+										: null}
 						{@const pillCompact = menuProgress > 0.55}
 						<button
 							type="button"
@@ -966,7 +1134,19 @@
 									</svg>
 								{/if}
 							</span>
-							{#if !pillCompact && pillPng}
+							{#if !pillCompact && pillFav}
+								<span class="pill-ico favicon" class:space-brand={pillBrand} aria-hidden="true">
+									<img
+										class="nav-favicon"
+										class:space-brand={pillBrand}
+										src={pillFav}
+										alt=""
+										width="22"
+										height="22"
+										onerror={(e) => onNavFaviconError(e, pillBrand)}
+									/>
+								</span>
+							{:else if !pillCompact && pillPng}
 								<span class="pill-ico png" aria-hidden="true">
 									<img class="nav-png" src={pillPng} alt="" width="22" height="22" />
 								</span>
@@ -1043,17 +1223,32 @@
 											aria-label="Close filter"
 											onclick={() => (filterOpen = false)}
 										></button>
-										<div class="filter-menu" role="listbox">
-											{#each filterOptions as opt (opt.id)}
-												<button
-													type="button"
-													class:on={filterValue === opt.id}
-													onclick={() => {
-														onFilterChange(opt.id);
-														filterOpen = false;
-													}}>{opt.label}</button
-												>
-											{/each}
+										<div class="filter-menu alpha-popover" role="listbox">
+											<div class="alpha-popover-list">
+												{#each filterOptions as opt (opt.id)}
+													{@const Icon = opt.icon}
+													<button
+														type="button"
+														class="alpha-popover-item"
+														class:on={filterValue === opt.id}
+														role="option"
+														aria-selected={filterValue === opt.id}
+														onclick={() => {
+															onFilterChange(opt.id);
+															filterOpen = false;
+														}}
+													>
+														<span class="alpha-popover-ico" aria-hidden="true">
+															{#if Icon}
+																<Icon size={16} />
+															{:else}
+																<ChevronRight size={14} />
+															{/if}
+														</span>
+														<span class="alpha-popover-label">{opt.label}</span>
+													</button>
+												{/each}
+											</div>
 										</div>
 									{/if}
 								</div>
@@ -1080,12 +1275,17 @@
 				</header>
 				{#if onRefresh}
 					<PullToRefresh onRefresh={onRefresh}>
-						<div class="pane-inner">
+						<!--
+							Never {#if}-unmount children while blanking — that tore out
+							SvelteKit’s page outlet mid-goto and left the pane empty.
+							CSS-hide only; SK can swap the route under the blank.
+						-->
+						<div class="pane-inner" class:list-blank={listBlank}>
 							{@render children?.()}
 						</div>
 					</PullToRefresh>
 				{:else}
-					<div class="pane-inner">
+					<div class="pane-inner" class:list-blank={listBlank}>
 						{@render children?.()}
 					</div>
 				{/if}
@@ -1100,6 +1300,100 @@
 	{#if sheets}
 		{@render sheets()}
 	{/if}
+
+	{#if searchEnabled}
+		<Modal bind:open={searchOpen} label="Search">
+			<div class="shell-modal">
+				<SheetTopbar title="Search" trailing="none" onclose={closeSearch} />
+				<div class="shell-modal-body">
+					<label class="shell-search-field">
+						<span class="sr-only">Search</span>
+						<span class="shell-search-ico" aria-hidden="true"><Search size={16} /></span>
+						<input
+							bind:this={searchInputEl}
+							type="search"
+							placeholder="Search"
+							bind:value={search}
+							autocomplete="off"
+							onkeydown={(e) => {
+								if (e.key === 'Escape') closeSearch();
+							}}
+						/>
+					</label>
+					<div class="shell-search-hits" role="listbox" aria-label="Results">
+						{#each searchHits as hit (hit.href + (hit.group || '') + hit.label)}
+							{@const fav = String(hit.faviconUrl || '').trim()}
+							{@const brand = Boolean(hit.spaceBrand)}
+							{@const png = !fav && hit.icon ? navPngUrl(hit.icon) : null}
+							<button
+								type="button"
+								class="shell-search-hit"
+								role="option"
+								onclick={() => pickSearchHit(hit.href)}
+							>
+								<span class="shell-search-hit-ico" aria-hidden="true">
+									{#if fav}
+										<img
+											class="nav-favicon"
+											class:space-brand={brand}
+											src={fav}
+											alt=""
+											width="18"
+											height="18"
+											onerror={(e) => onNavFaviconError(e, brand)}
+										/>
+									{:else if png}
+										<img class="nav-png" src={png} alt="" width="18" height="18" />
+									{:else}
+										<NavIcon name={hit.icon || 'dot'} size={18} />
+									{/if}
+								</span>
+								<span class="shell-search-hit-text">
+									<span class="shell-search-hit-label">{hit.label}</span>
+									{#if hit.group}
+										<span class="shell-search-hit-group">{hit.group}</span>
+									{/if}
+								</span>
+							</button>
+						{:else}
+							<p class="shell-search-empty">No matches</p>
+						{/each}
+					</div>
+				</div>
+			</div>
+		</Modal>
+	{/if}
+
+	{#if createMenuItems.length}
+		<Modal bind:open={createOpen} label="Create">
+			<div class="shell-modal">
+				<SheetTopbar title="Create" trailing="none" onclose={() => (createOpen = false)} />
+				<div class="shell-modal-body">
+					<div class="create-grid" role="menu">
+						{#each createMenuItems as item (item.kind)}
+							{@const icon = item.icon || createIconFor(item.kind)}
+							{@const png = navPngUrl(icon)}
+							<button
+								type="button"
+								class="create-tile"
+								role="menuitem"
+								onclick={() => create(item.kind)}
+							>
+								<span class="create-tile-ico" aria-hidden="true">
+									{#if png}
+										<img class="create-tile-png" src={png} alt="" />
+									{:else}
+										<span class="create-tile-nav"><NavIcon name={icon} size={28} /></span>
+									{/if}
+								</span>
+								<span class="create-tile-label">{item.label}</span>
+							</button>
+						{/each}
+					</div>
+				</div>
+			</div>
+		</Modal>
+	{/if}
 </div>
 
 <style>
@@ -1107,8 +1401,8 @@
 		/* Pad ≈ control row; fade is short/soft so content stays readable until the bar */
 		/* Clears the solid control row; fade veil is scroll-driven */
 		/* Default = Chat / reverse-scroll; `.feed-pad` aligns Tasks / Mail / … */
-		--feed-pad-top: 44px;
-		--feed-pad-bottom: 36px;
+		--feed-pad-top: var(--chrome-mobile, 2.75rem);
+		--feed-pad-bottom: 2.25rem;
 		--chrome-fade: var(--bg);
 		--chrome-scroll-fade: 0;
 		display: flex;
@@ -1123,12 +1417,12 @@
 	.sidebar {
 		width: var(--side);
 		flex-shrink: 0;
-		padding: 17px 16px 12px;
+		padding: 1.0625rem 1rem 0.75rem;
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
 		overflow: hidden;
-		gap: 10px;
+		gap: 0.625rem;
 		background: var(--shell);
 		color: var(--white);
 		box-sizing: border-box;
@@ -1139,7 +1433,7 @@
 		flex-direction: column;
 		min-height: 0;
 		flex: 1;
-		gap: 10px;
+		gap: 0.625rem;
 		overflow: hidden;
 	}
 
@@ -1157,9 +1451,9 @@
 	.side-top {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 0.625rem;
 		flex-shrink: 0;
-		min-height: 44px;
+		min-height: 2.75rem;
 		padding: 0;
 	}
 
@@ -1167,13 +1461,13 @@
 	.account-pill {
 		display: inline-flex;
 		align-items: center;
-		gap: 10px;
+		gap: 0.625rem;
 		flex: 1 1 auto;
 		min-width: 0;
-		height: 44px;
+		height: 2.75rem;
 		margin: 0;
 		/* 5px around 34px pfp → 44px outer, same as round chrome */
-		padding: 5px 12px 5px 5px;
+		padding: 0.3125rem 0.75rem 0.3125rem 0.3125rem;
 		border: 1px solid transparent;
 		border-radius: 9999px;
 		background: transparent;
@@ -1209,7 +1503,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		font-weight: 600;
 		letter-spacing: -0.01em;
 		color: inherit;
@@ -1219,13 +1513,13 @@
 	.search {
 		flex: 1;
 		min-width: 0;
-		height: 28px;
+		height: 1.75rem;
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 0 10px;
+		gap: 0.5rem;
+		padding: 0 0.625rem;
 		border: 1px solid transparent;
-		border-radius: 10px;
+		border-radius: 0.625rem;
 		background:
 			linear-gradient(var(--glass), var(--glass)) padding-box,
 			var(--glass-shine) border-box;
@@ -1247,7 +1541,7 @@
 		background: transparent;
 		color: var(--fg);
 		font: inherit;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		outline: none;
 	}
 
@@ -1255,7 +1549,201 @@
 		color: var(--fg-33);
 	}
 
-	.create-wrap,
+	.shell-modal {
+		display: flex;
+		flex-direction: column;
+		max-height: min(78vh, 640px);
+		box-sizing: border-box;
+	}
+
+	.shell-modal-body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 0.25rem 0.75rem 1rem;
+		box-sizing: border-box;
+		min-height: 0;
+	}
+
+	.shell-search-field {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: 2.75rem;
+		padding: 0 0.75rem;
+		border-radius: 0.875rem;
+		border: 1px solid var(--fg-8);
+		background: var(--fg-4);
+		color: var(--fg-66);
+		box-sizing: border-box;
+	}
+
+	.shell-search-field:focus-within {
+		border-color: var(--fg-16, color-mix(in srgb, var(--fg) 16%, transparent));
+		color: var(--fg);
+	}
+
+	.shell-search-ico {
+		flex-shrink: 0;
+		display: grid;
+		place-items: center;
+	}
+
+	.shell-search-field input {
+		flex: 1;
+		min-width: 0;
+		height: 2.5rem;
+		border: 0;
+		background: transparent;
+		color: var(--fg);
+		font: inherit;
+		font-size: 0.9375rem;
+		font-weight: 500;
+		outline: none;
+	}
+
+	.shell-search-field input::placeholder {
+		color: var(--fg-33);
+		font-weight: 500;
+	}
+
+	.shell-search-hits {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+		min-height: 0;
+		overflow-y: auto;
+		margin: 0 -0.25rem;
+		padding: 0 0.25rem;
+	}
+
+	.shell-search-hit {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		width: 100%;
+		padding: 0.625rem 0.625rem;
+		border: 0;
+		border-radius: 0.75rem;
+		background: transparent;
+		color: var(--fg);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		box-sizing: border-box;
+	}
+
+	.shell-search-hit:hover {
+		background: var(--fg-4);
+	}
+
+	.shell-search-hit-ico {
+		flex-shrink: 0;
+		width: 1.375rem;
+		height: 1.375rem;
+		display: grid;
+		place-items: center;
+		color: var(--fg-66);
+	}
+
+	.shell-search-hit-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.shell-search-hit-label {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--fg);
+	}
+
+	.shell-search-hit-group {
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: var(--fg-33);
+	}
+
+	.shell-search-empty {
+		margin: 0.75rem 0.25rem;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: var(--fg-33);
+		text-align: center;
+	}
+
+	.create-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.625rem;
+	}
+
+	.create-tile {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		min-height: 96px;
+		padding: 0.875rem 0.5rem 0.75rem;
+		border: 1px solid var(--fg-8);
+		border-radius: 1.125rem;
+		background: var(--fg-4);
+		color: var(--fg);
+		font: inherit;
+		cursor: pointer;
+		box-sizing: border-box;
+		transition: transform 0.15s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+	}
+
+	.create-tile:hover {
+		background: var(--fg-8);
+		transform: scale(1.02);
+	}
+
+	.create-tile:active {
+		transform: scale(0.97);
+	}
+
+	.create-tile-ico {
+		width: 2.25rem;
+		height: 2.25rem;
+		display: grid;
+		place-items: center;
+		color: var(--fg-66);
+	}
+
+	.create-tile-png {
+		display: block;
+		width: 2rem;
+		height: 2rem;
+		object-fit: contain;
+		border-radius: 0.5rem;
+	}
+
+	.create-tile-nav {
+		display: grid;
+		place-items: center;
+		color: var(--fg-66);
+	}
+
+	.create-tile-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		text-align: center;
+		line-height: 1.25;
+		color: var(--fg);
+	}
+
+	@media (min-width: 480px) {
+		.create-grid {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+	}
+
 	.filter-wrap {
 		position: relative;
 		flex-shrink: 0;
@@ -1264,12 +1752,12 @@
 	/* Match desktop list-top chrome-btn (rounded square) */
 	.top-search,
 	.top-plus {
-		width: 28px;
-		height: 28px;
+		width: 1.75rem;
+		height: 1.75rem;
 		display: grid;
 		place-items: center;
 		border: 1px solid transparent;
-		border-radius: 10px;
+		border-radius: 0.625rem;
 		background:
 			linear-gradient(var(--glass), var(--glass)) padding-box,
 			var(--glass-shine) border-box;
@@ -1295,16 +1783,16 @@
 
 	.icon-wrap.png,
 	.icon-wrap.empty {
-		width: 18px;
-		height: 18px;
+		width: 1.125rem;
+		height: 1.125rem;
 	}
 
 	.nav-png {
 		display: block;
-		width: 18px;
-		height: 18px;
+		width: 1.125rem;
+		height: 1.125rem;
 		object-fit: contain;
-		border-radius: 4px;
+		border-radius: 0.25rem;
 	}
 
 	.menu-scrim {
@@ -1319,25 +1807,28 @@
 	.create-menu,
 	.filter-menu {
 		position: absolute;
-		top: calc(100% + 6px);
+		top: calc(100% + 0.375rem);
 		right: 0;
 		z-index: 50;
 		min-width: 168px;
 		padding: 0;
-		border: 1px solid var(--glass-border);
-		border-radius: 12px;
-		background: var(--glass);
 		overflow: hidden;
+	}
+
+	/* Legacy create-menu rows (pre-popover). Filter uses .alpha-popover-* */
+	.create-menu {
+		border: 1px solid var(--glass-border);
+		border-radius: 0.75rem;
+		background: var(--glass);
 		box-shadow: 0 8px 28px var(--shadow);
 		backdrop-filter: blur(var(--glass-blur));
 		-webkit-backdrop-filter: blur(var(--glass-blur));
 	}
 
-	.create-menu button,
-	.filter-menu button {
+	.create-menu button {
 		display: block;
 		width: 100%;
-		padding: 8px 12px;
+		padding: 0.5rem 0.75rem;
 		border: 0;
 		border-radius: 0;
 		background: transparent;
@@ -1349,26 +1840,19 @@
 		cursor: pointer;
 	}
 
-	.create-menu button:not(:last-child),
-	.filter-menu button:not(:last-child) {
+	.create-menu button:not(:last-child) {
 		border-bottom: 0.33px solid var(--fg-8);
 	}
 
-	.create-menu button:hover,
-	.filter-menu button:hover,
-	.filter-menu button.on {
+	.create-menu button:hover {
 		background: var(--fg-4);
 		color: var(--fg);
-	}
-
-	.filter-menu button.on {
-		font-weight: 600;
 	}
 
 	.sidebar-nav {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 0.125rem;
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
@@ -1378,15 +1862,21 @@
 		flex-shrink: 0;
 		margin-top: auto;
 		min-width: 0;
-		padding-top: 8px;
+		padding-top: 0.5rem;
 	}
 
 	/*
 	 * Selected glass lives on the block so Mail can expand the same pill into a
-	 * panel that contains subitems. Always-on 1px transparent border + fixed
-	 * icon box keep row height stable when switching sections.
+	 * title + quiet sub-items panel. Always-on 1px transparent border + fixed
+	 * icon box keep row height stable when switching sections. Expanded radius
+	 * = half the collapsed pill height (pad-y*2 + ico + 2px border).
 	 */
 	.nav-block {
+		--nav-ico: 18px;
+		--nav-gap: 0.625rem;
+		--nav-pad-x: 10px;
+		--nav-pad-y: 0.5rem;
+		--nav-expanded-radius: calc(var(--nav-pad-y) + (var(--nav-ico) / 2) + 1px);
 		border: 1px solid transparent;
 		border-radius: 999px;
 		box-sizing: border-box;
@@ -1403,8 +1893,8 @@
 	}
 
 	.nav-block.expanded {
-		border-radius: 22px;
-		padding-bottom: 4px;
+		border-radius: var(--nav-expanded-radius);
+		padding-bottom: 0.25rem;
 	}
 
 	.nav-row {
@@ -1426,16 +1916,16 @@
 	.nav-item {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 0.625rem;
 		flex: 1;
 		min-width: 0;
-		padding: 8px 10px;
+		padding: 0.5rem 0.625rem;
 		border: 0;
 		border-radius: 999px;
 		background: transparent;
 		color: var(--white66);
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
-		font-size: 14px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		text-align: left;
 		cursor: pointer;
@@ -1449,22 +1939,22 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1px;
-		margin-top: 10px;
-		padding-top: 4px;
+		margin-top: 0.625rem;
+		padding-top: 0.25rem;
 	}
 
 	.nav-group-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 4px 12px 6px;
-		min-height: 28px;
+		gap: 0.5rem;
+		padding: 0.25rem 0.75rem 0.375rem;
+		min-height: 1.75rem;
 		box-sizing: border-box;
 	}
 
 	.nav-group-eyebrow {
-		font-size: 10px;
+		font-size: 0.625rem;
 		font-weight: 500;
 		text-transform: uppercase;
 		letter-spacing: 0.18em;
@@ -1473,35 +1963,55 @@
 
 	.nav-favicon {
 		display: block;
-		width: 18px;
-		height: 18px;
-		border-radius: 4px;
+		width: 1.125rem;
+		height: 1.125rem;
+		border-radius: 0.25rem;
 		object-fit: cover;
+	}
+
+	.nav-favicon.space-brand {
+		border-radius: 999px;
+		box-sizing: border-box;
+		border: 1px solid var(--fg-16, color-mix(in srgb, var(--fg, var(--ink)) 16%, transparent));
 	}
 
 	.icon-wrap.favicon {
 		overflow: hidden;
-		border-radius: 4px;
+		border-radius: 0.25rem;
+	}
+
+	.icon-wrap.favicon.space-brand {
+		overflow: visible;
+		border-radius: 999px;
+	}
+
+	.nav-ico-fallback {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.125rem;
+		height: 1.125rem;
 	}
 
 	.nav-sub {
 		display: flex;
 		flex-direction: column;
 		gap: 0;
-		padding: 0 0 2px;
+		padding: 0 0 0.125rem;
 	}
 
-	/* Left pad = nav-item pad (10) + icon (18) + gap (10) so labels line up with Mail. */
+	/* Left pad = nav-item pad + icon + gap so labels line up with Mail. */
 	.nav-sub-item {
 		display: block;
 		width: 100%;
-		padding: 3px 10px 3px 38px;
+		padding: 0.1875rem var(--nav-pad-x, 0.625rem) 0.1875rem
+			calc(var(--nav-pad-x, 0.625rem) + var(--nav-ico, 1.125rem) + var(--nav-gap, 0.625rem));
 		border: 0;
 		border-radius: 0;
 		background: transparent;
 		color: var(--white33, var(--fg-33));
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		text-align: left;
 		cursor: pointer;
@@ -1518,12 +2028,12 @@
 
 	.nav-row.creatable .nav-item,
 	.nav-row:has(.row-end) .nav-item {
-		padding-right: 56px;
+		padding-right: 3.5rem;
 	}
 
 	.icon-wrap {
-		width: 18px;
-		height: 18px;
+		width: 1.125rem;
+		height: 1.125rem;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
@@ -1541,22 +2051,22 @@
 
 	.row-end {
 		position: absolute;
-		right: 6px;
+		right: 0.375rem;
 		top: 50%;
-		min-width: 24px;
-		height: 24px;
+		min-width: 1.5rem;
+		height: 1.5rem;
 		transform: translateY(-50%);
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 6px;
+		gap: 0.375rem;
 		pointer-events: none;
 	}
 
 	.row-end-stack {
 		position: relative;
-		width: 24px;
-		height: 24px;
+		width: 1.5rem;
+		height: 1.5rem;
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
@@ -1570,12 +2080,12 @@
 	.count {
 		display: grid;
 		place-items: center;
-		width: 24px;
-		height: 24px;
+		width: 1.5rem;
+		height: 1.5rem;
 		margin: 0;
 		padding: 0;
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
-		font-size: 12px;
+		font-size: 0.75rem;
 		font-weight: 500;
 		font-style: normal;
 		line-height: 1;
@@ -1592,8 +2102,8 @@
 	}
 
 	.row-plus {
-		width: 24px;
-		height: 24px;
+		width: 1.5rem;
+		height: 1.5rem;
 		display: grid;
 		place-items: center;
 		border: 0;
@@ -1634,7 +2144,7 @@
 		flex: 1;
 		min-width: 0;
 		min-height: 0;
-		padding: 12px 12px 12px 0;
+		padding: 0.75rem 0.75rem 0.75rem 0;
 		box-sizing: border-box;
 		display: flex;
 		position: relative;
@@ -1648,7 +2158,7 @@
 		flex-direction: row;
 		align-items: stretch;
 		overflow: hidden;
-		border-radius: 20px;
+		border-radius: 1.25rem;
 		/* Follows theme page bg; comms feeds use --feed-bg in light */
 		background: var(--bg);
 		border: 1px solid var(--hairline);
@@ -1728,14 +2238,18 @@
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 10px;
+		gap: 0.625rem;
 		/* Control row ~48px; extra height is the scroll-driven fade zone */
 		height: 72px;
-		padding: 0 10px 0 16px;
+		padding: 0 0.625rem 0 1rem;
 		border-bottom: none;
 		box-sizing: border-box;
 		pointer-events: none;
 		background: transparent;
+	}
+
+	.list-top.hidden {
+		display: none;
 	}
 
 	/* Three-stop fade: solid near bar → ~80% mid → clear (no solid ::before cliff) */
@@ -1763,7 +2277,7 @@
 		.list-top > :global(.list-title-row),
 		.list-top > .list-actions,
 		.list-top > :global(.zoom-seg) {
-			height: 48px;
+			height: 3rem;
 			display: flex;
 			align-items: center;
 		}
@@ -1784,14 +2298,15 @@
 	.list-title-row {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		/* Title ↔ loader breathing room on desktop */
+		gap: 0.625rem;
 		min-width: 0;
 	}
 
 	.list-title {
 		margin: 0;
 		font-family: 'Inter', var(--font), system-ui, sans-serif;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		letter-spacing: 0;
 		color: var(--white33);
@@ -1800,9 +2315,18 @@
 	.title-loader {
 		display: inline-flex;
 		align-items: center;
-		flex-shrink: 0;
+		justify-content: center;
+		align-self: center;
+		flex: 0 0 auto;
+		margin-left: 0.125rem;
+		line-height: 0;
+		overflow: visible;
+		padding-top: 0.125rem;
+		box-sizing: content-box;
+		--loader-ink: var(--fg-66);
 		color: var(--fg-66);
 		opacity: 0.85;
+		pointer-events: none;
 	}
 
 	.mobile-page-title {
@@ -1814,11 +2338,11 @@
 		width: 200px;
 		max-width: 200px;
 		box-sizing: border-box;
-		padding-right: 8px;
+		padding-right: 0.5rem;
 	}
 
 	.list-top.planning-top {
-		padding-left: 16px;
+		padding-left: 1rem;
 		/* Merge visually with Planning’s sticky head row */
 		background: transparent;
 		z-index: 8;
@@ -1834,18 +2358,18 @@
 	 * Desktop matches Tasks “In Progress” group header; mobile sits +4px lower.
 	 */
 	.shell.feed-pad {
-		--feed-pad-top: 48px;
+		--feed-pad-top: 3rem;
 	}
 
 	.zoom-seg {
 		display: inline-flex;
 		align-items: center;
-		gap: 2px;
-		height: 28px;
-		padding: 2px;
+		gap: 0.125rem;
+		height: 1.75rem;
+		padding: 0.125rem;
 		box-sizing: border-box;
 		border: 1px solid transparent;
-		border-radius: 10px;
+		border-radius: 0.625rem;
 		background:
 			linear-gradient(var(--glass), var(--glass)) padding-box,
 			var(--glass-shine) border-box;
@@ -1857,13 +2381,13 @@
 
 	.zoom-seg button {
 		height: 100%;
-		padding: 0 10px;
+		padding: 0 0.625rem;
 		border: 0;
-		border-radius: 8px;
+		border-radius: 0.5rem;
 		background: transparent;
 		color: var(--fg-33);
 		font: inherit;
-		font-size: 11px;
+		font-size: 0.6875rem;
 		font-weight: 600;
 		cursor: pointer;
 		line-height: 1;
@@ -1877,18 +2401,18 @@
 	.list-actions {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 0.375rem;
 	}
 
-	/* Desktop: 28px squared chrome (between prior 26 and nav 32); circles mobile-only */
+	/* Desktop: chrome-desk squared; circles mobile-only — rem tracks --ui-scale */
 	.chrome-btn {
-		width: 28px;
-		height: 28px;
+		width: var(--chrome-desk, 1.75rem);
+		height: var(--chrome-desk, 1.75rem);
 		display: grid;
 		place-items: center;
 		padding: 0;
 		border: 1px solid transparent;
-		border-radius: 10px;
+		border-radius: var(--chrome-radius-desk, 0.625rem);
 		background:
 			linear-gradient(var(--glass), var(--glass)) padding-box,
 			var(--glass-shine) border-box;
@@ -1913,8 +2437,8 @@
 
 	.chrome-ico {
 		display: block;
-		width: 16px;
-		height: 16px;
+		width: var(--chrome-icon-desk, 1rem);
+		height: var(--chrome-icon-desk, 1rem);
 	}
 
 	.pane {
@@ -1943,6 +2467,12 @@
 		overflow: hidden;
 	}
 
+	/* Mobile section switch: hide stale page instantly without unmounting SK outlet */
+	.pane-inner.list-blank > :global(*) {
+		visibility: hidden !important;
+		pointer-events: none !important;
+	}
+
 	.sr-only {
 		position: absolute;
 		width: 1px;
@@ -1961,8 +2491,8 @@
 			--menu-progress: 0;
 			/* Page peeks ~33% when drawer open; sidebar fills the rest */
 			--mobile-drawer: 67vw;
-			--feed-pad-top: calc(52px + env(safe-area-inset-top, 0px));
-			--feed-pad-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+			--feed-pad-top: calc(3.25rem + env(safe-area-inset-top, 0px));
+			--feed-pad-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
 			position: relative;
 			flex-direction: row;
 			padding-bottom: 0;
@@ -1971,7 +2501,7 @@
 		}
 
 		.shell.feed-pad {
-			--feed-pad-top: calc(60px + env(safe-area-inset-top, 0px));
+			--feed-pad-top: calc(3.75rem + env(safe-area-inset-top, 0px));
 		}
 
 		/*
@@ -1986,7 +2516,7 @@
 			bottom: 0;
 			width: var(--mobile-drawer);
 			z-index: 1;
-			padding: calc(36px + env(safe-area-inset-top, 0px)) 14px
+			padding: calc(2.25rem + env(safe-area-inset-top, 0px)) 0.875rem
 				calc(12px + env(safe-area-inset-bottom, 0px));
 			background: var(--bg);
 			/* Glass/lift come from theme tokens — do not re-mix ink into bg here */
@@ -2012,27 +2542,36 @@
 
 		/* Align account / search / plus with the 44px compact title chevron */
 		.side-top {
-			height: 44px;
+			height: 2.75rem;
 			padding: 0;
-			gap: 8px;
+			gap: 0.5rem;
 		}
 
 		.account-name {
-			font-size: 14px;
+			font-size: 0.875rem;
 		}
 
 		.top-search,
 		.top-plus {
-			width: 44px;
-			height: 44px;
+			width: 2.75rem;
+			height: 2.75rem;
 			border-radius: 9999px;
 		}
 
 		/* Nav Search glyph — fully :global so Svelte won’t strip unused .icon */
 		:global(.top-search .icon),
 		:global(.top-search svg) {
-			width: 18px !important;
-			height: 18px !important;
+			width: 1.125rem !important;
+			height: 1.125rem !important;
+		}
+
+		/* Match chat bubble body; scale icons/Mail pill with it (~20px radius). */
+		.sidebar-nav .nav-block {
+			--nav-ico: 20px;
+			--nav-gap: 0.75rem;
+			--nav-pad-x: 12px;
+			--nav-pad-y: 0.5625rem;
+			--nav-label-size: 0.9375rem;
 		}
 
 		.workspace-wrap {
@@ -2052,9 +2591,9 @@
 			transform: translate3d(calc(var(--mobile-drawer) * var(--menu-progress)), 0, 0)
 				scale(calc(1 - 0.045 * var(--menu-progress)));
 			transform-origin: left center;
-			border-radius: calc(32px * var(--menu-progress));
+			border-radius: calc(2rem * var(--menu-progress));
 			margin-block: calc(12px * var(--menu-progress));
-			height: calc(100% - (24px * var(--menu-progress)));
+			height: calc(100% - (1.5rem * var(--menu-progress)));
 			/* Quiet edge only — no fill/scrim that changes the page look */
 			box-shadow:
 				0 0 0 calc(1px * var(--menu-progress))
@@ -2080,7 +2619,7 @@
 		.nav-peek {
 			display: block;
 			position: absolute;
-			top: calc(56px + env(safe-area-inset-top, 0px));
+			top: calc(3.5rem + env(safe-area-inset-top, 0px));
 			right: 0;
 			bottom: 0;
 			left: 0;
@@ -2118,7 +2657,7 @@
 			transform-origin: left center;
 			transform: translate3d(calc(-30% * var(--detail-progress, 0)), 0, 0)
 				scale(calc(1 - 0.08 * var(--detail-progress, 0)));
-			border-radius: calc(14px * var(--detail-progress, 0));
+			border-radius: calc(0.875rem * var(--detail-progress, 0));
 			transition:
 				transform 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
 				border-radius 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
@@ -2143,11 +2682,11 @@
 		}
 
 		.list-top {
-			height: calc(88px + env(safe-area-inset-top, 0px));
-			padding: calc(6px + env(safe-area-inset-top, 0px)) 14px 34px 14px;
+			height: calc(5.5rem + env(safe-area-inset-top, 0px));
+			padding: calc(0.375rem + env(safe-area-inset-top, 0px)) 0.875rem 2.125rem 0.875rem;
 			align-items: center;
 			background: transparent;
-			gap: 8px;
+			gap: 0.5rem;
 		}
 
 		.list-top::after {
@@ -2165,6 +2704,8 @@
 			position: relative;
 			z-index: 2;
 			margin-left: auto;
+			/* Never shrink round 44px chrome buttons into ovals. */
+			flex-shrink: 0;
 		}
 
 		/* Section icon + title pill — opens the slide-over menu; collapses to round › when open */
@@ -2173,11 +2714,12 @@
 			z-index: 2;
 			display: inline-flex;
 			align-items: center;
-			gap: 10px;
+			/* Tight chevron → icon → title; do not flex-grow the label away from the PNG. */
+			gap: 0.375rem;
 			max-width: min(58vw, 240px);
-			height: 44px;
+			height: 2.75rem;
 			margin: 0;
-			padding: 0 14px 0 10px;
+			padding: 0 0.875rem 0 0.625rem;
 			border: 1px solid transparent;
 			border-radius: 9999px;
 			background:
@@ -2186,7 +2728,8 @@
 			color: var(--fg-66);
 			cursor: pointer;
 			box-sizing: border-box;
-			flex-shrink: 1;
+			/* Prefer ellipsis over flex-shrinking under list-actions. */
+			flex-shrink: 0;
 			min-width: 0;
 			backdrop-filter: blur(var(--glass-blur));
 			-webkit-backdrop-filter: blur(var(--glass-blur));
@@ -2200,9 +2743,9 @@
 		}
 
 		.mobile-title-pill.compact {
-			width: 44px;
-			max-width: 44px;
-			min-width: 44px;
+			width: 2.75rem;
+			max-width: 2.75rem;
+			min-width: 2.75rem;
 			padding: 0;
 			gap: 0;
 			justify-content: center;
@@ -2222,8 +2765,8 @@
 			display: grid;
 			place-items: center;
 			flex-shrink: 0;
-			width: 22px;
-			height: 22px;
+			width: 1.375rem;
+			height: 1.375rem;
 			color: var(--fg-33);
 		}
 
@@ -2235,31 +2778,52 @@
 			display: grid;
 			place-items: center;
 			flex-shrink: 0;
-			width: 22px;
-			height: 22px;
-			margin-left: 2px;
+			width: 1.375rem;
+			height: 1.375rem;
+			/* Pull PNG a hair closer to the title (gap already 6px). */
+			margin-left: 0;
 			color: inherit;
 		}
 
 		.pill-ico.png {
-			width: 22px;
-			height: 22px;
+			width: 1.375rem;
+			height: 1.375rem;
+		}
+
+		.pill-ico.favicon {
+			width: 1.375rem;
+			height: 1.375rem;
+			overflow: hidden;
+			border-radius: 0.25rem;
+		}
+
+		.pill-ico.favicon.space-brand {
+			overflow: visible;
+			border-radius: 999px;
+		}
+
+		.pill-ico .nav-favicon {
+			width: 1.375rem;
+			height: 1.375rem;
 		}
 
 		.pill-title-stack {
 			display: inline-flex;
 			align-items: center;
-			gap: 6px;
+			gap: 0.375rem;
 			min-width: 0;
+			/* Intrinsic — never flex-grow and invent space after the icon. */
+			flex: 0 1 auto;
 		}
 
 		.pill-label {
 			min-width: 0;
+			flex: 0 1 auto;
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
 			font-family: 'Inter', var(--font), system-ui, sans-serif;
-			font-size: 15px;
+			font-size: 0.9375rem;
 			font-weight: 600;
 			letter-spacing: -0.01em;
 			line-height: 1.1;
@@ -2269,12 +2833,26 @@
 		.pill-loader {
 			display: inline-flex;
 			align-items: center;
-			flex-shrink: 0;
+			justify-content: center;
+			flex: 0 0 auto;
+			margin-left: 0.125rem;
+			line-height: 0;
+			overflow: visible;
+			padding-top: 0.125rem;
+			box-sizing: content-box;
+			--loader-ink: var(--fg-66);
 			color: var(--fg-66);
 			opacity: 0.85;
+			pointer-events: none;
 		}
 
-		.list-title-slot.mobile-pill-owns-title :global(.mobile-page-title) {
+		/*
+		 * Pill owns the section/folder label on mobile — hide slotted centered
+		 * titles (ListTitleChrome + MailFolderTitle). CSS media (not JS class)
+		 * so first paint never shows a duplicate. Restored after 268b7a6 drop.
+		 */
+		.list-title-slot :global(.mobile-page-title),
+		.list-title-slot :global(.mail-title) {
 			display: none !important;
 		}
 
@@ -2292,7 +2870,7 @@
 			right: 0;
 			bottom: 0;
 			z-index: 5;
-			height: calc(40px + env(safe-area-inset-bottom, 0px));
+			height: calc(2.5rem + env(safe-area-inset-bottom, 0px));
 			background: linear-gradient(
 				to top,
 				color-mix(in srgb, var(--chrome-fade) 90%, transparent) 0%,
@@ -2317,7 +2895,7 @@
 			justify-content: center;
 			min-width: 0;
 			flex: 1;
-			height: 44px;
+			height: 2.75rem;
 			transition: transform 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 		}
 
@@ -2328,8 +2906,8 @@
 			position: absolute;
 			left: 0;
 			right: 0;
-			top: calc(6px + env(safe-area-inset-top, 0px));
-			height: 44px;
+			top: calc(0.375rem + env(safe-area-inset-top, 0px));
+			height: 2.75rem;
 			flex: none;
 			width: auto;
 			padding: 0 58px;
@@ -2371,7 +2949,7 @@
 			justify-content: center;
 			min-width: 0;
 			flex: 1;
-			height: 44px;
+			height: 2.75rem;
 			transition: align-items 0.34s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
 		}
 
@@ -2388,7 +2966,7 @@
 			max-width: 100%;
 			font-family: 'Inter', var(--font), system-ui, sans-serif;
 			/* Match deeper mobile chrome titles */
-			font-size: 17px;
+			font-size: 1.0625rem;
 			font-weight: 600;
 			letter-spacing: -0.01em;
 			line-height: 1.15;
@@ -2414,7 +2992,7 @@
 		/* Slotted ListTitleChrome / MailFolderTitle share the quieter centered look */
 		.list-top :global(.mobile-page-name),
 		.list-top :global(.mobile-name) {
-			font-size: 17px;
+			font-size: 1.0625rem;
 			font-weight: 600;
 			letter-spacing: -0.01em;
 			line-height: 1.15;
@@ -2443,12 +3021,12 @@
 		}
 
 		.list-actions {
-			gap: 8px;
+			gap: 0.5rem;
 		}
 
 		.chrome-btn {
-			width: 44px;
-			height: 44px;
+			width: var(--chrome-mobile, 2.75rem);
+			height: var(--chrome-mobile, 2.75rem);
 			border-radius: 9999px;
 			border: 1px solid transparent;
 			background:
@@ -2466,8 +3044,8 @@
 		}
 
 		.chrome-ico {
-			width: 22px;
-			height: 22px;
+			width: var(--chrome-icon, 1.375rem);
+			height: var(--chrome-icon, 1.375rem);
 		}
 
 		.pane {
