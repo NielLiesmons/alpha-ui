@@ -3,6 +3,7 @@
 	 * Configurable Alpha app shell — sidebar + list/detail + mobile drawer nav.
 	 * Apps pass sections and own domain logic; this owns chrome presentation.
 	 */
+	import { onDestroy } from 'svelte';
 	import { attachChromeScrollFade } from './chrome-scroll-fade.js';
 	import { navPngUrl } from './nav-png.js';
 	import MetaballLoader from './MetaballLoader.svelte';
@@ -582,24 +583,44 @@
 	 * Mobile nav open: paint html/body + theme-color with the drawer surface (--bg)
 	 * so status-bar / home-indicator safe areas match the lighter nav panel (top + bottom).
 	 * Closed → restore page surface (--shell). app.css: html.nav-menu-open { background: var(--bg) }.
+	 *
+	 * Do NOT remove nav-menu-open in $effect cleanup — Svelte re-runs cleanup before every
+	 * re-execution, which flashed html/body back to --shell (wrong home-indicator strip).
+	 * Toggle only in the effect body; clear on destroy.
 	 */
-	$effect(() => {
+	function syncNavMenuSurface(on) {
 		if (typeof document === 'undefined') return;
-		const on = isMobileViewport && menuProgress > 0.02;
 		const root = document.documentElement;
+		const body = document.body;
 		root.classList.toggle('nav-menu-open', on);
+		const probe = document.createElement('div');
+		probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;background:var(${on ? '--bg' : '--shell'})`;
+		root.appendChild(probe);
+		const color = getComputedStyle(probe).backgroundColor;
+		probe.remove();
+		if (!color) return;
 		const meta = document.querySelector('meta[name="theme-color"]');
-		if (meta) {
-			const probe = document.createElement('div');
-			probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;background:var(${on ? '--bg' : '--shell'})`;
-			root.appendChild(probe);
-			const color = getComputedStyle(probe).backgroundColor;
-			probe.remove();
-			if (color) meta.setAttribute('content', color);
+		if (meta) meta.setAttribute('content', color);
+		/*
+		 * Inline paint beats app.html first-paint / light-theme boot inline styles,
+		 * which otherwise leave the home-indicator strip on --shell while the drawer
+		 * is --bg. Clear on close so CSS tokens (and boot) own the surface again.
+		 */
+		if (on) {
+			root.style.background = color;
+			body.style.background = color;
+		} else {
+			root.style.removeProperty('background');
+			body.style.removeProperty('background');
 		}
-		return () => {
-			root.classList.remove('nav-menu-open');
-		};
+	}
+
+	$effect(() => {
+		syncNavMenuSurface(isMobileViewport && menuProgress > 0.02);
+	});
+
+	onDestroy(() => {
+		syncNavMenuSurface(false);
 	});
 
 	/*
@@ -2512,6 +2533,14 @@
 			--menu-progress: 0;
 			/* Page peeks ~33% when drawer open; sidebar fills the rest */
 			--mobile-drawer: 67vw;
+			/* Page card letterbox (px — must match workspace-wrap margin-block) */
+			--nav-open-gutter: 12px;
+			/*
+			 * Shared chrome inset below safe-area for account row + compact chevron.
+			 * Keep both bars on this token so they stay vertically aligned.
+			 * Was 2.25rem (~36px×ui-scale) — sat too low under the status bar.
+			 */
+			--nav-open-chrome-pad: 0.625rem;
 			--feed-pad-top: calc(3.25rem + env(safe-area-inset-top, 0px));
 			--feed-pad-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
 			position: relative;
@@ -2537,8 +2566,14 @@
 			bottom: 0;
 			width: var(--mobile-drawer);
 			z-index: 1;
-			padding: calc(2.25rem + env(safe-area-inset-top, 0px)) 0.875rem
-				calc(12px + env(safe-area-inset-bottom, 0px));
+			/*
+			 * Viewport Y of account row = gutter + chrome-pad + safe-area — same as the
+			 * compact chevron on the slid page (page already sits in --nav-open-gutter).
+			 */
+			padding: calc(
+					var(--nav-open-gutter) + var(--nav-open-chrome-pad) + env(safe-area-inset-top, 0px)
+				)
+				0.875rem calc(var(--nav-open-gutter) + env(safe-area-inset-bottom, 0px));
 			background: var(--bg);
 			/* Glass/lift come from theme tokens — do not re-mix ink into bg here */
 			pointer-events: none;
@@ -2623,8 +2658,8 @@
 				scale(calc(1 - 0.045 * var(--menu-progress)), 1);
 			transform-origin: left center;
 			border-radius: calc(32px * var(--menu-progress));
-			margin-block: calc(12px * var(--menu-progress));
-			height: calc(100% - (24px * var(--menu-progress)));
+			margin-block: calc(var(--nav-open-gutter) * var(--menu-progress));
+			height: calc(100% - (2 * var(--nav-open-gutter) * var(--menu-progress)));
 			/* Quiet edge only — no fill/scrim that changes the page look */
 			box-shadow:
 				0 0 0 calc(1px * var(--menu-progress))
@@ -2666,10 +2701,10 @@
 			-webkit-tap-highlight-color: transparent;
 		}
 
-		/* Match taller nav-open list-top so the compact chevron stays tappable */
+		/* Match nav-open list-top so the compact chevron stays tappable */
 		.shell.nav-open .nav-peek,
 		.shell.nav-dragging .nav-peek {
-			top: calc(5.125rem + (2.25rem - 12px) + env(safe-area-inset-top, 0px));
+			top: calc(5.125rem + var(--nav-open-chrome-pad) + env(safe-area-inset-top, 0px));
 		}
 
 		.nav-peek.on {
@@ -2727,16 +2762,15 @@
 		}
 
 		/*
-		 * Nav open: page card sits in a 12px shell gutter (no vertical scale), so the
-		 * closed-state 6px pad glues the compact chevron into the 32px radius.
-		 * Top pad = sidebar pad (2.25rem) − 12px gutter — keeps chevron aligned with
-		 * the account row under --ui-scale and clears the rounded card edge.
+		 * Nav open: page card already sits in --nav-open-gutter, so list-top only
+		 * needs --nav-open-chrome-pad (+ safe-area). Same token as sidebar pad above
+		 * the gutter → account row and compact chevron stay vertically aligned.
 		 */
 		.shell.nav-open .list-top,
 		.shell.nav-dragging .list-top {
-			height: calc(5.125rem + (2.25rem - 12px) + env(safe-area-inset-top, 0px));
-			padding: calc(2.25rem - 12px + env(safe-area-inset-top, 0px)) 0.875rem 2.125rem
-				0.875rem;
+			height: calc(5.125rem + var(--nav-open-chrome-pad) + env(safe-area-inset-top, 0px));
+			padding: calc(var(--nav-open-chrome-pad) + env(safe-area-inset-top, 0px)) 0.875rem
+				2.125rem 0.875rem;
 		}
 
 		.list-top::after {

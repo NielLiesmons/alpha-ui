@@ -1,7 +1,7 @@
 {
 	"name": "@alpha/ui",
 	"private": true,
-	"version": "0.2.6",
+	"version": "0.2.7",
 	"description": "Shared Alpha design system: tokens, icons, shell chrome, sheets",
 	"type": "module",
 	"exports": {
