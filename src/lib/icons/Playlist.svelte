@@ -3,7 +3,7 @@
 	let { size = 22, className = '', active = false } = $props();
 </script>
 
-<span class="icon {className}" class:active style:width="{size}px" style:height="{size}px">
+<span class="icon {className}" class:active style:width="{(size / 16)}rem" style:height="{(size / 16)}rem">
 	<svg viewBox="0 0 64 64" width={size} height={size} fill="none" aria-hidden="true">
 		<path
 			d="M0 6C0 2.68629 2.68629 0 6 0H10C13.3137 0 16 2.68629 16 6V10C16 13.3137 13.3137 16 10 16H6C2.68629 16 0 13.3137 0 10V6Z"

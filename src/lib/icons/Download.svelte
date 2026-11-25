@@ -5,8 +5,8 @@
 
 <span
 	class="icon {className}"
-	style:width="{size}px"
-	style:height="{Math.round((size * 21) / 20)}px"
+	style:width="{(size / 16)}rem"
+	style:height="{(Math.round((size * 21) / 20) / 16)}rem"
 >
 	<svg viewBox="0 0 20 21" width={size} height={(size * 21) / 20} fill="none" aria-hidden="true">
 		<path
