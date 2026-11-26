@@ -1477,9 +1477,12 @@
 		display: flex;
 		align-items: center;
 		gap: 0.625rem;
+		flex: 0 0 auto;
 		flex-shrink: 0;
 		min-height: 2.75rem;
 		padding: 0;
+		position: relative;
+		z-index: 1;
 	}
 
 	/* Pfp + name — glass pill when Settings is selected; chrome invisible otherwise */
@@ -1874,17 +1877,27 @@
 		color: var(--fg);
 	}
 
+	/*
+	 * Nav column: fixed top chrome + scrollable items + fixed bottom trail
+	 * (voice player / PWA install). Only `.sidebar-nav` scrolls.
+	 */
 	.sidebar-nav {
 		display: flex;
 		flex-direction: column;
 		gap: 0.125rem;
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
+		overflow-x: hidden;
 		overflow-y: auto;
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: contain;
 	}
 
 	.sidebar-trail {
-		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		flex: 0 0 auto;
 		margin-top: auto;
 		min-width: 0;
 		padding-top: 0.5rem;
