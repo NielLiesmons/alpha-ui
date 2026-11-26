@@ -6,9 +6,19 @@
  * (rare: scroll affordance otherwise unclear — no fade, no peek of more content).
  * Horizontal emoji rows, pill tracks, segmented controls stay hidden (default).
  *
+ * Horizontal scroll rows — mark with [data-h-scroll]:
+ *   • touch-action: pan-x so the browser prefers row scroll over page gestures
+ *   • overscroll-behavior-x: contain so edge bounce doesn’t leak to the page
+ *   • UiShell / DetailColumn exclude [data-h-scroll] from nav-open / swipe-back
+ *
  * Import: `@import '@alpha/ui/scrollbars.css';`
  * Also pulled in by `tokens.css`.
  */
+
+[data-h-scroll] {
+	touch-action: pan-x;
+	overscroll-behavior-x: contain;
+}
 
 @media (max-width: 767px) {
 	*,

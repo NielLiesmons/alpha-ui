@@ -681,7 +681,7 @@
 			if (
 				t instanceof Element &&
 				t.closest(
-					'input, textarea, select, [contenteditable="true"], [data-no-nav-swipe]'
+					'input, textarea, select, [contenteditable="true"], [data-no-nav-swipe], [data-h-scroll]'
 				)
 			) {
 				return;

@@ -21,7 +21,7 @@
 	} = $props();
 </script>
 
-<div class="seg-track" class:equal role="group" aria-label={label || undefined}>
+<div class="seg-track" class:equal role="group" aria-label={label || undefined} data-h-scroll>
 	{#each options as opt (opt.value)}
 		<button
 			type="button"
