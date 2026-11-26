@@ -1458,6 +1458,8 @@
 		flex-direction: column;
 		min-height: 0;
 		flex: 1;
+		height: 100%;
+		max-height: 100%;
 		gap: 0.625rem;
 		overflow: hidden;
 	}
@@ -1880,6 +1882,8 @@
 	/*
 	 * Nav column: fixed top chrome + scrollable items + fixed bottom trail
 	 * (voice player / PWA install). Only `.sidebar-nav` scrolls.
+	 * Children must NOT flex-shrink — default shrink crushed section rows when
+	 * the keyboard + trail panels left a tiny middle instead of scrolling.
 	 */
 	.sidebar-nav {
 		display: flex;
@@ -1893,11 +1897,16 @@
 		overscroll-behavior: contain;
 	}
 
+	.sidebar-nav > * {
+		flex: 0 0 auto;
+	}
+
 	.sidebar-trail {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
 		flex: 0 0 auto;
+		flex-shrink: 0;
 		margin-top: auto;
 		min-width: 0;
 		padding-top: 0.5rem;
