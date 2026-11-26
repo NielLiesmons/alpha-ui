@@ -27,9 +27,13 @@ const ALIAS = {
 	note: 'notes',
 	/* Nav / content-type keys use plural; asset is project.png */
 	projects: 'project',
+	/* Nav keys are English; asset is entreprise.png */
+	enterprise: 'entreprise',
+	entreprises: 'entreprise',
 	inbox: 'mail',
 	message: 'mail',
-	messages: 'chat'
+	messages: 'chat',
+	photo: 'photos'
 };
 
 /**
