@@ -1,124 +1,53 @@
 # `@alpha/ui`
 
-Shared design-system package for Admin, Player, Bley, and later customer UIs.
+Shared design package for Alpha apps (Admin, Player, marketing sites).
 
-**Owns:** CSS tokens, SVG icons, Svelte chrome primitives (shell, sheets, icons).  
-**Does not own:** Drive/session/chat/mail domain logic, product routing, or copy.
+Alpha = private Drive + Mail + Chat on your domain. This package owns **chrome only** — not Drive/session/chat/mail domain logic.
 
-## Install (local apps)
+## Owns / does not
 
-Sibling checkout + file dependency:
+| Owns | Does not |
+|------|----------|
+| CSS tokens (`tokens/tokens.css`) | Cryptree / session / JMAP |
+| SVG icons + Svelte icon wrappers | Product routing / copy |
+| Shell, sheets, popovers, composers | Space-specific business rules |
+
+## Install
 
 ```json
-{
-  "dependencies": {
-    "@alpha/ui": "file:../alpha-ui"
-  }
-}
+{ "dependencies": { "@alpha/ui": "file:../alpha-ui" } }
 ```
 
-Then `npm install` / `bun install`. Vite apps should set:
-
-```js
-// vite.config.js
-ssr: { noExternal: ['@alpha/ui'] }
-```
-
-## Tokens
-
-**Source of truth:** `tokens/tokens.css` → `@alpha/ui/tokens.css`.
+Vite: `ssr: { noExternal: ['@alpha/ui'] }`.
 
 ```css
 @import '@alpha/ui/tokens.css';
-```
-
-Apps that skip the full token sheet can still pull shared surfaces:
-
-```css
 @import '@alpha/ui/popover.css';
-@import '@alpha/ui/scrollbars.css'; /* mobile: hide scrollbars; opt in with .show-scrollbar */
+@import '@alpha/ui/scrollbars.css'; /* mobile: hide scrollbars; opt-in `.show-scrollbar` */
 ```
 
-Apps keep font `@import`s and product CSS. Do not fork token values in app `:root` — override Space brand knobs (`--accent`, fonts) on `<html>` instead (see `alpha-docs/ADR-shared-design-system.md`).
+Override Space brand knobs (`--accent`, fonts) on `<html>` — don’t fork token values in app `:root`. See `alpha-docs/ADR-shared-design-system.md`.
 
-## Icons
-
-**SVG SoT:** `icons/*.svg` → `@alpha/ui/icons/<name>.svg`.  
-**Svelte wrappers:** `NavIcon`, `BaseIcon`, `Pen`, `Trash`.
-
-```svelte
-import NavIcon from '@alpha/ui/NavIcon.svelte';
-<NavIcon name="songs" size={18} />
-```
-
-Player-oriented names: `songs`, `albums` / `releases`, `playlists`, `recent` / `played`, `artists`.  
-Admin names unchanged: `drive`, `mail`, `chat`, `tasks`, …
-
-Stroke weight from CSS `--icon-stroke` with `vector-effect: non-scaling-stroke`.
-
-## Chrome primitives
+## Key exports
 
 | Export | Role |
 |--------|------|
-| `UiShell.svelte` | Configurable app frame: sidebar nav, list column + scroll fader, mobile bottom pill, optional detail slot, create menu, filters, pull-to-refresh |
-| `DetailChrome.svelte` | Detail column frame (desktop pane + mobile slide-over) |
-| `ChromeMobileBar.svelte` | Round back + centered muted title (Admin/Player mobile detail) |
-| `Button.svelte` | Shared CTA (`primary` / `glass`) — glass-shine stroke, pointer highlight, scale |
-| `PrimaryButton.svelte` | Primary glass CTA (Admin publish + marketing) |
-| `GlassButton.svelte` | Secondary glass CTA |
-| `ChatBubble.svelte` | Presentational chat bubble (Admin feed + marketing) |
-| `ChatComposer.svelte` | Presentational composer pill chrome |
-| `FeedEntityPanel.svelte` | Mail / task / note panel in a chat feed |
-| `ListTitleChrome.svelte` | List-column title (root large / nested round-back + muted) |
-| `DetailTitleRow.svelte` | Detail entity title row spacing + typography (Notes / Tasks / Mail) |
-| `Modal.svelte` | Bottom / floating sheet |
-| `CreateSheet.svelte` | Create/edit overlay (keyboard-aware) |
-| `FloatPanel.svelte` | Portaled glass popover |
-| `PullToRefresh.svelte` | Mobile pull-to-refresh |
-| `MetaballLoader.svelte` | Soft two-ball gooey loader (product loading affordance) |
-| `Spinner.svelte` | Alias → MetaballLoader (legacy import path) |
-| `chrome-scroll-fade.js` | `--chrome-scroll-fade` driver |
+| `UiShell.svelte` | App frame: nav, list column, mobile pill, detail slot |
+| `DetailChrome.svelte` / `ChromeMobileBar.svelte` | Detail frames |
+| `Modal.svelte` / `CreateSheet.svelte` | Sheets (no drag grabber) |
+| `FloatPanel.svelte` / `DropdownMenu.svelte` | Popovers — `.alpha-popover-*`; anchor or `{x,y}` point |
+| `ChatBubble.svelte` / `ChatComposer.svelte` | Presentational chat chrome |
+| `Button.svelte` / `PrimaryButton.svelte` / `GlassButton.svelte` | CTAs |
+| `NavIcon` / `icons/*` | SVG SoT in `icons/*.svg` |
+| `scrollbars.css` | `data-h-scroll` = horizontal row beats page swipe |
 
-### Configuring Player nav
+## Session cookies
 
-```js
-// alpha-player/src/lib/sections.js
-export const primaryNav = [
-  { href: '/songs', label: 'Songs', icon: 'songs', countKey: 'tracks', createKind: 'upload' },
-  { href: '/albums', label: 'Albums', icon: 'albums', countKey: 'albums' },
-  { href: '/playlists', label: 'Playlists', icon: 'playlists', countKey: 'playlists', createKind: 'playlist' },
-  { href: '/recent', label: 'Recent', icon: 'recent' },
-  { href: '/played', label: 'Played', icon: 'played' }
-];
-```
+Admin and Player share Drive auth via parent-domain cookie `Domain=.{apex}` (e.g. `.example.com`) so deep-links don’t re-login.
 
-```svelte
-<UiShell
-  sections={primaryNav}
-  mobileSections={mobileNav}
-  activeHref={activeHref}
-  counts={{ tracks, playlists, albums }}
-  createMenuItems={[
-    { kind: 'upload', label: 'Upload audio' },
-    { kind: 'playlist', label: 'New playlist' }
-  ]}
-  onNavigate={go}
-  onCreate={onCreate}
-  onNavPlus={onNavPlus}
->
-  {#snippet detail()}…{/snippet}
-  <!-- list column children -->
-</UiShell>
-```
+## Design rules (short)
 
-Admin passes its own `sections` from `sections.js` (Tasks, Notes, …) into the same `UiShell`.
-
-## Shared `.bley.farm` session
-
-Admin (`admin.bley.farm`) and Player (`player.bley.farm`) share Drive auth on the parent `.bley.farm` cookie domain so deep-linking does not re-login.
-
-## Design rules
-
-- Accent is **not** default UI text — use grayscale (`--fg` / `--fg-66` / …) for copy; accent for fills/status.
-- Counts / chrome labels: Inter (via `--font` / explicit Inter stack).
-- Primary CTAs stay ink-on-bg, not accent-filled.
+- Accent is a **whisper** (checks / sparse marks) — not selected rows or primary CTAs.
+- Selected list rows: `--fg-4` fill, not accent wash.
+- No monospace / tabular-nums in chrome counts.
+- Destructive icons: `--accent-3`; in-progress: `--accent-2`; Settings disconnect: grayscale.
