@@ -2148,6 +2148,11 @@
 		color: var(--white66);
 	}
 
+	/* Chat unread only: breathe from pill edge — do not shift creatable + stacks. */
+	.nav-row :global(.unread-mark) {
+		padding-inline-end: 0.75rem;
+	}
+
 	/* UnreadMark count: muted white on dark nav — never accent / full ink. */
 	.nav-row :global(.unread-mark .n) {
 		color: var(--white66);
