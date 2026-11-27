@@ -1,6 +1,6 @@
 <script>
 	/**
-	 * Presentational chat composer pill — Admin ChatChannelPanel chrome.
+	 * Presentational chat composer pill — Team ChatChannelPanel chrome.
 	 * Pass interactive controls via slots; `demo` renders a static bar.
 	 * @typedef {{
 	 *   placeholder?: string,
@@ -95,7 +95,7 @@
 	.composer-pill {
 		/* Fixed equal radii — never a full pill (multi-line drafts look broken with 9999). */
 		--composer-radius: 23.5px;
-		/* Match Admin ChatComposerBar control box (pad + 1.25rem lh); inherits if set. */
+		/* Match Team ChatComposerBar control box (pad + 1.25rem lh); inherits if set. */
 		--composer-control-h: calc(0.375rem + 1.25rem + 0.4375rem);
 		--composer-row-pad-y: 0.4375rem;
 		--composer-row-h: calc(var(--composer-control-h) + 2 * var(--composer-row-pad-y));

@@ -116,7 +116,7 @@
 		filterValue = 'all',
 		createMenuItems = [],
 		createKind = undefined,
-		/** When false, only listActionsSlot is shown (Admin mail/planning chrome). */
+		/** When false, only listActionsSlot is shown (Team mail/planning chrome). */
 		defaultListActions = true,
 		/**
 		 * Mobile section switch: blank list pane so the previous page never flashes.

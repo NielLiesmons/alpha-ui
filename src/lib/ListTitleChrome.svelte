@@ -1,9 +1,9 @@
 <script>
 	/**
-	 * Shared list-column title chrome (Admin + Player).
+	 * Shared list-column title chrome (Team + Player).
 	 * Root pages: desktop muted label + mobile large page name.
 	 * Nested (canBack): desktop back + muted label; mobile round back + centered muted title
-	 * (same language as ChromeMobileBar / Admin detail).
+	 * (same language as ChromeMobileBar / Team detail).
 	 * Syncing = small metaball after the title text (not in-page “Updating”).
 	 * @type {{
 	 *   title?: string,
@@ -131,7 +131,7 @@
 		pointer-events: none;
 	}
 
-	/* Admin Planning list — fixed label column width */
+	/* Team Planning list — fixed label column width */
 	.list-title:global(.planning-title) {
 		width: 200px;
 		max-width: 200px;
@@ -139,7 +139,7 @@
 		padding-right: 0.5rem;
 	}
 
-	/* Match DetailChrome / Admin desktop glass icon-hit */
+	/* Match DetailChrome / Team desktop glass icon-hit */
 	.title-back {
 		flex-shrink: 0;
 		width: 1.75rem;
